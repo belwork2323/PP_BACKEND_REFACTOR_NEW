@@ -1,0 +1,5471 @@
+QC DIVISION MASTER AND AUTO-POPULATE APIs
+=========================================
+
+The division master is stored in MongoDB. API consumers use numeric division
+IDs; display names are returned from the master collection. These APIs are
+read-only and do not create or update a QC form.
+
+Base URL: /api/v1/user/qc-division
+Authorization: User
+
+
+1. FETCH ALL QC DIVISIONS
+=========================
+
+Method: GET
+URL: /api/v1/user/qc-division/divisions
+Request body: none
+
+Success response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC divisions fetched successfully",
+  "data": [
+    {
+      "divisionId": 1,
+      "divisionName": "Raw Material",
+      "disabled": false,
+      "types": [
+        {
+          "divisionId": 101,
+          "divisionName": "Raw Material Revalidation",
+          "disabled": false
+        },
+        {
+          "divisionId": 102,
+          "divisionName": "Raw Material Processing",
+          "disabled": false
+        }
+      ]
+    },
+    {
+      "divisionId": 2,
+      "divisionName": "Mixing",
+      "disabled": false,
+      "types": []
+    },
+    {
+      "divisionId": 12,
+      "divisionName": "Static Test Facility",
+      "disabled": true,
+      "types": []
+    }
+  ],
+  "timestamp": "2026-08-05T12:00:00"
+}
+
+Rules:
+
+- Top-level divisions are returned by displayOrder.
+- Nested types are also returned by displayOrder.
+- Disabled divisions remain in the response so the UI can display them.
+- Numeric IDs are unique across both top-level divisions and nested types.
+
+
+2. AUTO-POPULATE SELECTED QC DIVISION
+=====================================
+
+Method: POST
+URL: /api/v1/user/qc-division/division-details
+Content-Type: application/json
+
+Request body:
+
+{
+  "batchId": "BATCH-2026-0001",
+  "divisionId": 101
+}
+
+Request fields:
+
+  batchId
+    Type: string
+    Required: yes
+    Description: Active batch whose identification-sheet materials are loaded.
+
+  divisionId
+    Type: number
+    Required: yes
+    Supported values:
+      101 - Raw Material Revalidation
+      102 - Raw Material Processing
+      2   - Mixing
+      3   - Hardware
+      4   - Casting
+      5   - Curing
+      6   - De-coring
+      7   - Trimming
+      8   - Post Cure
+      9   - NDT
+    Description: Numeric ID of the final selectable division/type.
+
+Success response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division data populated successfully",
+  "data": {
+    "batchId": "BATCH-2026-0001",
+    "selectedDivision": {
+      "divisionId": 101,
+      "divisionName": "Raw Material Revalidation"
+    },
+    "materials": [
+      {
+        "srNo": 1,
+        "materialCode": "AP",
+        "materialName": "Ammonium Perchlorate (AP)",
+        "grade": {
+          "gradeId": "101",
+          "gradeCode": "COARSE",
+          "gradeName": "AP Coarse"
+        },
+        "lotId": "LOT-2026-08-03-001",
+        "submissionType": "SUBMIT",
+        "subDepartmentId": 1,
+        "supplyOrderNo": "SUPORD001",
+        "receiptDate": "03-08-2026",
+        "manufacturerName": "PP_BEL",
+        "specifications": [
+          {
+            "specificationCode": "SPEC-APC-001",
+            "specificationName": "Assay as NH4ClO4",
+            "referenceRange": {
+              "minValue": 99,
+              "maxValue": 100,
+              "unit": "%"
+            },
+            "analysedResult": 99,
+            "isOutOfRange": false,
+            "acemQcResult": 99,
+            "status": "Passed"
+          }
+        ],
+        "certificates": [
+          {
+            "fileName": "ACEM-Tracker - Integration Testing.pdf",
+            "fileUrl": "pending-upload://ACEM-Tracker%20-%20Integration%20Testing.pdf",
+            "certificateType": "PDF"
+          }
+        ]
+      }
+    ]
+  },
+  "timestamp": "2026-08-05T12:00:00"
+}
+
+Response rules:
+
+- selectedDivision contains the numeric ID sent by the UI and the display name
+  resolved from MongoDB.
+- materials contains one flat object per identification-sheet material, in the
+  same order as the identification sheet.
+- Lot data is resolved using each identification-sheet lotId and the existing
+  raw-material sourcing lot-details logic.
+- grade is omitted when neither the lot nor identification-sheet material has a
+  grade.
+- progressInsights, qualityInsights and workflowInsights are not returned.
+- The endpoint does not save the populated data or create a QC form.
+
+Raw Material Processing response for divisionId 102:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division data populated successfully",
+  "data": {
+    "batchId": "BATCH-2026-0001",
+    "selectedDivision": {
+      "divisionId": 102,
+      "divisionName": "Raw Material Processing"
+    },
+    "premixes": [
+      {
+        "premixNo": 1,
+        "premixSubmissionStatus": "APPROVED",
+        "details": {
+          "premixNo": 1,
+          "premixDate": null,
+          "materialType": "BOTH",
+          "premixSubmissionType": "SUBMIT",
+          "solidProcess": [
+            {
+              "materialId": 1,
+              "materialCode": "AP",
+              "materialName": "Ammonium Perchlorate (AP)",
+              "gradeId": 101,
+              "gradeCode": "COARSE",
+              "schemaVersion": "1.0",
+              "schemaType": "RAW_MATERIALS",
+              "sections": [
+                {
+                  "sectionId": "feedMaterialDetails",
+                  "sectionData": [
+                    {
+                      "feedLots": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "materialId": 2,
+              "materialCode": "AL",
+              "materialName": "Aluminium Powder",
+              "gradeId": 201,
+              "gradeCode": "FINE",
+              "schemaVersion": "1.0",
+              "schemaType": "RAW_MATERIALS",
+              "sections": []
+            }
+          ],
+          "liquidProcess": [
+            {
+              "materialId": 3,
+              "materialCode": "HTPB",
+              "materialName": "Hydroxyl-Terminated Polybutadiene",
+              "gradeId": 301,
+              "gradeCode": "STANDARD",
+              "schemaVersion": "1.0",
+              "schemaType": "RAW_MATERIALS",
+              "sections": []
+            }
+          ]
+        }
+      },
+      {
+        "premixNo": 2,
+        "premixSubmissionStatus": "WAITING_FOR_APPROVAL"
+      }
+    ]
+  },
+  "timestamp": "2026-08-05T12:00:00"
+}
+
+Raw Material Processing rules:
+
+- No separate materials array is returned. Each premix already contains its
+  solid and liquid material processes.
+- Every required premix is returned in premix-number order.
+- APPROVED premixes include the complete matching RMP premix under details,
+  including every material and its dynamic sections.
+- All other premix statuses are status-only and do not include details.
+- Required premixes not yet saved are returned as TO_BE_INITIATED.
+- The form-level weightment sheet is not returned.
+
+Mixing response for divisionId 2:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division data populated successfully",
+  "data": {
+    "batchId": "BATCH-2026-0001",
+    "selectedDivision": {
+      "divisionId": 2,
+      "divisionName": "Mixing"
+    },
+    "stages": [
+      {
+        "stageType": "PREMIX",
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixSubmissionStatus": "APPROVED",
+            "details": {
+              "premixNo": 1,
+              "premixSubmissionType": "SUBMIT",
+              "premixSubmissionStatus": "APPROVED",
+              "mixerConfiguration": {},
+              "trialDetails": {},
+              "mixDetails": {},
+              "mixingCycle": {},
+              "processParticulars": [],
+              "qualityChecks": []
+            }
+          },
+          {
+            "premixNo": 2,
+            "premixSubmissionStatus": "WAITING_FOR_APPROVAL"
+          }
+        ]
+      },
+      {
+        "stageType": "FINAL_MIX",
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixSubmissionStatus": "TO_BE_INITIATED"
+          },
+          {
+            "premixNo": 2,
+            "premixSubmissionStatus": "REJECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "timestamp": "2026-08-05T12:00:00"
+}
+
+Mixing rules:
+
+- PREMIX and FINAL_MIX are returned as separate stages in workflow order.
+- Every required item is returned in premix-number order.
+- APPROVED items include the complete saved mixing item under details.
+- All other statuses are status-only and do not include details.
+- Missing or null saved statuses are returned as TO_BE_INITIATED.
+
+Hardware response for divisionId 3:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division data populated successfully",
+  "data": {
+    "batchId": "BATCH-2026-0001",
+    "selectedDivision": {
+      "divisionId": 3,
+      "divisionName": "Hardware"
+    },
+    "motors": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionStatus": "APPROVED",
+        "details": {
+          "motorId": "MOTOR-001",
+          "prrcClearanceDate": "2026-08-05",
+          "motorSubmissionType": "SUBMIT",
+          "motorSubmissionStatus": "APPROVED",
+          "abradingOperation": {
+            "typeOfCasing": "COMPOSITE",
+            "typeOfInsulation": "ROCASIN",
+            "abradingWheelType": "G36",
+            "abradingDetails": []
+          },
+          "bellowBonding": null,
+          "tceCleaning": null,
+          "preHeating": null,
+          "linerCoatingOperation": {
+            "linerType": "HEMCOAT_3L",
+            "batchNo": "Hem-Batch1",
+            "batchSize": 200,
+            "premixIngredients": [],
+            "finalMixIngredients": [],
+            "qualificationParameters": [],
+            "linerApplicationLog": [],
+            "rh": "65"
+          },
+          "dispatchToCasting": null
+        }
+      },
+      {
+        "motorId": "MOTOR-002",
+        "motorSubmissionStatus": "WAITING_FOR_APPROVAL"
+      }
+    ]
+  },
+  "timestamp": "2026-08-05T12:00:00"
+}
+
+Hardware rules:
+
+- Every motor configured for the batch is returned in batch motor order.
+- Motor statuses come from the Case Preparation form-details logic.
+- APPROVED motors include the complete matching Case Preparation motor under details.
+- Case Preparation sections are direct named motor fields; the legacy sections array is not returned.
+- Casting RH is added to details.linerCoatingOperation.rh when available.
+- All other motor statuses are status-only and do not include details.
+- Missing or null saved statuses are returned as TO_BE_INITIATED.
+
+Casting response for divisionId 4 and Curing response for divisionId 5 use
+the same motor-level response shape. Both read the shared Casting and Curing
+form, but return only the section belonging to the selected division.
+
+Casting approved motor example:
+
+{
+  "motorId": "MOTOR-001",
+  "motorSubmissionStatus": "APPROVED",
+  "details": {
+    "castingSections": {
+      "finalAssemblyDetails": {
+        "motorCasing": []
+      },
+      "castingProcess": {
+        "finalMixBowlDetails": [],
+        "castingFromBowlDetails": [],
+        "initialVacuum": 45,
+        "vacuumPressureCasting": 55,
+        "vacuumPressureSoaking": 65
+      },
+      "slurryCastDetails": {
+        "slurryCastFromBowls": []
+      },
+      "postCastOperations": {
+        "postCastTable": []
+      }
+    }
+  }
+}
+
+Curing approved motor example:
+
+{
+  "motorId": "MOTOR-001",
+  "motorSubmissionStatus": "APPROVED",
+  "motorStage": "Stage 1",
+  "curingType": "Confined Curing",
+  "oven": "15A",
+  "ovenNumber": "Oven no 1",
+  "details": {
+    "curingSections": {
+      "curingCycles": {
+        "curingTable": []
+      },
+      "postCuringDetails": null,
+      "decoringDetails": null
+    },
+    "subscaleDetails": {
+      "curingTable": [
+        {
+          "articleType": "BEM",
+          "bemNo": "BEM-001",
+          "curingStartDate": "12-08-2026",
+          "curingEndDate": "13-08-2026",
+          "ovenNo": "15A",
+          "temperature": 60,
+          "hardness": 75,
+          "decoringDate": "14-08-2026",
+          "decoringLoad": 250,
+          "grainSurfaceObservations": "Satisfactory"
+        }
+      ]
+    }
+  }
+}
+
+Casting and Curing rules:
+
+- Every motor configured for the batch is returned in batch motor order.
+- Both divisions use the shared Casting and Curing motor approval status.
+- Curing motors include motorStage, curingType, oven, and ovenNumber before details.
+- Approved Curing details include the batch's Subscale Processing curing data under subscaleDetails.
+- subscaleDetails is an empty object when no Subscale Processing curing data is available.
+- APPROVED motors include only the selected division's named section object.
+- All other motor statuses are status-only and do not include details.
+- A missing Casting or Curing section on an approved motor is returned as an empty object.
+
+De-coring response for divisionId 6 also reads the shared Casting and Curing
+form. For an approved motor, it extracts values from
+curingSections.decoringDetails.
+
+De-coring approved motor example:
+
+{
+  "motorId": "MOTOR-001",
+  "motorSubmissionStatus": "APPROVED",
+  "details": {
+    "decoringDetails": {
+      "decoringDate": "2026-06-09",
+      "buildingNo": "BLDG-12",
+      "decoringLoadKg": 250,
+      "visualObservation": "De-coring completed successfully"
+    }
+  }
+}
+
+Non-approved motors are status-only and do not include details.
+
+Manufacturing Casting and Curing prerequisite (strict DTO contract):
+
+Method: POST
+URL: /api/v1/user/casting-curing/form/create
+
+Request body:
+
+{
+  "batchId": "BATCH-2026-0001",
+  "subDepartmentId": 6,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceivedAt": "2026-08-21T05:35:00",
+      "motorSubmissionType": "DRAFT",
+      "setup": {
+        "castingType": "Single",
+        "castingStation": "15B"
+      },
+      "curingSetup": {
+        "oven": "15B",
+        "ovenNo": "2",
+        "curingType": "CONFINED_CURING",
+        "configuration": null,
+        "motorsToCureCount": null,
+        "ovensUtilized": null
+      },
+      "castingSections": {
+        "finalAssemblyDetails": {
+          "motorCasing": [
+            {
+              "mandrelMeasurements": [
+                {
+                  "srNo": 1,
+                  "aMock": 250,
+                  "bMock": 245,
+                  "bFinal": 2.6,
+                  "cMock": 5,
+                  "cFinal": 247.4,
+                  "bellowsThicknessD": 2.76,
+                  "eMock": 2.24,
+                  "eFinal": 244.64
+                }
+              ],
+              "feedPipeDistance": [
+                {
+                  "srNo": 1,
+                  "reading1": 120,
+                  "reading2": 135
+                }
+              ],
+              "emptyMotorWeight": 70
+            }
+          ]
+        },
+        "castingProcess": {
+          "finalMixBowlDetails": [
+            {
+              "srNo": 1,
+              "bowlId": "FINAL_MIX 1 / Bowl No.3",
+              "bowlReceiptTime": "03:20:00",
+              "initialWeight": 80,
+              "finalWeight": 90,
+              "initialSlurryDepth": 10,
+              "dcOpenTime": "02:15:00",
+              "dcCloseTime": "02:20:00",
+              "slurryDepthAfterDc": 7,
+              "ballValveOpenTime": "02:20:00"
+            }
+          ],
+          "castingFromBowlDetails": [
+            {
+              "srNo": 1,
+              "bowlId": "FINAL_MIX 1 / Bowl No.3",
+              "timeInterval": 3,
+              "rh": 55,
+              "viscosity": 38,
+              "motorId": "MOTOR-001",
+              "slurryDepth": 5,
+              "slurryCast": 70,
+              "flowRate": 80,
+              "valveOpening": 60,
+              "vacuumLevel": 500
+            }
+          ],
+          "initialVacuum": 45,
+          "vacuumPressureCasting": 55,
+          "vacuumPressureSoaking": 65
+        },
+        "slurryCastDetails": {
+          "slurryCastFromBowls": [
+            {
+              "rowKey": "1",
+              "fmMotorLabel": "FINAL_MIX 1 / Bowl No.3",
+              "slurryCast": 80
+            },
+            {
+              "rowKey": "TOTAL",
+              "fmMotorLabel": "Total Slurry Cast",
+              "slurryCast": 80
+            }
+          ]
+        },
+        "postCastOperations": {
+          "postCastTable": [
+            {
+              "srNo": 1,
+              "activity": "Soaking Time",
+              "details": "02:20"
+            }
+          ]
+        }
+      },
+      "curingSections": {
+        "curingCycles": {
+          "curingTable": [
+            {
+              "srNo": 1,
+              "temperature": 40,
+              "time": 90,
+              "startDate": "2026-07-30",
+              "startTime": "08:00:00",
+              "endDate": "2026-07-30",
+              "endTime": "09:30:00",
+              "hotWaterStatus": "ON",
+              "propellantPressure": 2.5
+            }
+          ]
+        },
+        "postCuringDetails": {
+          "otherObservations": "Curing completed without interruption.",
+          "visualObservation": "No visible deformation or leakage.",
+          "pressurePlateRemovalDateTime": "2026-08-18T05:30:00",
+          "shoreAHardness": 70,
+          "decoringDispatchDateTime": "2026-08-19T06:35:00"
+        },
+        "decoringDetails": {
+          "decoringDate": "2026-08-26",
+          "buildingNo": "14C",
+          "decoringLoad": 70,
+          "decoringRemarks": "De-coring entry completed under UAT.",
+          "decoringVisualObservation": null
+        }
+      }
+    }
+  ]
+}
+
+Create and Update use the same motor DTO. Update additionally requires formId.
+The details response returns the same direct motor structure and adds the
+backend-controlled motorSubmissionStatus. Do not send details, sectionId,
+sectionData, legacy uppercase keys, or motorSubmissionStatus. Fixed numeric
+fields must be JSON numbers or null; date/time fields must use ISO format.
+
+Trimming response for divisionId 7 and Post Cure response for divisionId 8
+use the same motor-level response shape as Hardware. Each division reads its
+own form-details response and motor approval statuses.
+
+Approved motor example:
+
+{
+  "motorId": "MOTOR-001",
+  "motorSubmissionStatus": "APPROVED",
+  "details": {
+    "motorId": "MOTOR-001"
+  }
+}
+
+Trimming and Post Cure rules:
+
+- Every motor configured for the batch is returned in batch motor order.
+- APPROVED motors include the complete matching saved motor under details.
+- All other motor statuses are status-only and do not include details.
+- Missing or null saved statuses are returned as TO_BE_INITIATED.
+
+NDT response for divisionId 9 uses the same motor-level response shape.
+Motor statuses and details are read from the existing NDT form-details logic.
+
+NDT rules:
+
+- Every motor configured for the batch is returned in batch motor order.
+- APPROVED motors include the complete matching saved NDT motor under details.
+- All other motor statuses are status-only and do not include details.
+- Missing or null saved statuses are returned as TO_BE_INITIATED.
+
+
+SILENT SOURCE-DATA FALLBACK
+===========================
+
+This endpoint is called silently by the UI. After the batch and selected
+division have been validated, a missing source record returns 200 OK instead
+of propagating a 404. The selected division and batch are still returned, and
+the division-specific collection is empty:
+
+- Raw Material Revalidation: "materials": []
+- Raw Material Processing: "premixes": []
+- Mixing: "stages": []
+- Hardware: "motors": []
+- Casting: "motors": []
+- Curing: "motors": []
+- De-coring: "motors": []
+- Trimming: "motors": []
+- Post Cure: "motors": []
+- NDT: "motors": []
+
+This applies to missing forms, lots, and other source-detail records. Unknown
+division IDs and missing/deleted batch IDs remain errors because the request
+itself cannot be resolved.
+
+
+ERROR RESPONSES
+===============
+
+Missing request fields: 400 VALIDATION_ERROR
+
+{
+  "success": false,
+  "code": 400,
+  "message": "Validation failed",
+  "data": {
+    "batchId": "batchId is required",
+    "divisionId": "divisionId is required"
+  },
+  "errorCode": "VALIDATION_ERROR",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+Unknown division ID: 404 RESOURCE_NOT_FOUND
+
+{
+  "success": false,
+  "code": 404,
+  "message": "QC division not found: 999",
+  "errorCode": "RESOURCE_NOT_FOUND",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+Disabled or unsupported division: 400 INVALID_REQUEST
+
+{
+  "success": false,
+  "code": 400,
+  "message": "Auto-population is not supported for QC division: Static Test Facility",
+  "errorCode": "INVALID_REQUEST",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+Batch not found or deleted: 404 BATCH_NOT_FOUND
+
+{
+  "success": false,
+  "code": 404,
+  "message": "Batch not found: BATCH-2026-0001",
+  "errorCode": "BATCH_NOT_FOUND",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+Missing identification-sheet materials: 400 INVALID_REQUEST
+
+{
+  "success": false,
+  "code": 400,
+  "message": "Identification sheet materials are not available for the batch",
+  "errorCode": "INVALID_REQUEST",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+MONGODB MASTER DATA
+===================
+
+Collection: qc_division_master
+
+Insert the following JSON documents into the collection. MongoDB may generate
+the _id values automatically.
+
+[
+  {
+    "divisionId": 1,
+    "divisionName": "Raw Material",
+    "displayOrder": 1,
+    "disabled": false,
+    "types": [
+      {
+        "divisionId": 101,
+        "divisionName": "Raw Material Revalidation",
+        "displayOrder": 1,
+        "disabled": false
+      },
+      {
+        "divisionId": 102,
+        "divisionName": "Raw Material Processing",
+        "displayOrder": 2,
+        "disabled": false
+      }
+    ]
+  },
+  {
+    "divisionId": 2,
+    "divisionName": "Mixing",
+    "displayOrder": 2,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 3,
+    "divisionName": "Hardware",
+    "displayOrder": 3,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 4,
+    "divisionName": "Casting",
+    "displayOrder": 4,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 5,
+    "divisionName": "Curing",
+    "displayOrder": 5,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 6,
+    "divisionName": "De-coring",
+    "displayOrder": 6,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 7,
+    "divisionName": "Trimming",
+    "displayOrder": 7,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 8,
+    "divisionName": "Post Cure",
+    "displayOrder": 8,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 9,
+    "divisionName": "NDT",
+    "displayOrder": 9,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 10,
+    "divisionName": "QC",
+    "displayOrder": 10,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 11,
+    "divisionName": "Weightment",
+    "displayOrder": 11,
+    "disabled": false,
+    "types": []
+  },
+  {
+    "divisionId": 12,
+    "divisionName": "Static Test Facility",
+    "displayOrder": 12,
+    "disabled": true,
+    "types": []
+  }
+]
+
+Mongo shell example after assigning the JSON array to qcDivisions:
+
+  db.qc_division_master.insertMany(qcDivisions)
+
+
+QC DIVISION-WISE APPROVER API
+============================
+
+WHAT CHANGED
+============
+
+- The existing division change-status endpoint now supports division-level,
+  premix-level, and motor-level QC approvals.
+- Every QC approval request must pass divisionId and division. Both values are
+  validated against the workflow stored for the QC form.
+- For Raw Material approvals, division can be RAW_MATERIAL with subType
+  RAW_MATERIAL_REVALIDATION/RAW_MATERIAL_PROCESSING, matching the saved form
+  payload. The canonical subtype name is also accepted as division.
+- Raw Material Revalidation and Weightment are approved at division level and
+  do not require premixNo or motorId.
+- Raw Material Processing requires premixNo.
+- Mixing requires premixNo and stageType because PREMIX 1 and FINAL_MIX 1 are
+  separate approval units.
+- Motor-based divisions require motorId.
+- The existing premix and motor change-status endpoints are retained. When
+  those endpoints are used for a QC Division form, divisionId and division
+  must also be passed.
+- The unified endpoint always returns QcDivisionFormResponse and identifies
+  the acted-on division and unit.
+
+
+UNIFIED APPROVER ENDPOINT
+=========================
+
+Method: POST
+URL: /api/v1/approver/form/division/change-status
+Authority: Approver
+Content-Type: application/json
+
+
+DIVISION SCOPE
+==============
+
+Division ID   API division name             Approval scope
+-----------   -----------------------------  ----------------
+101           RAW_MATERIAL_REVALIDATION      Division
+102           RAW_MATERIAL_PROCESSING        Premix
+2             MIXING                        Premix + stageType
+3             HARDWARE                      Motor
+4             CASTING                       Motor
+5             CURING                        Motor
+6             DE_CORING                     Motor
+7             TRIMMING                      Motor
+8             POST_CURE                     Motor
+9             NDT                           Motor
+10            PROPELLANT_PROPERTIES          Motor
+11            WEIGHTMENT                    Division
+
+
+COMMON REQUEST FIELDS
+=====================
+
+Field             Type       Required       Description
+----------------  ---------  -------------  ---------------------------------
+formId            String     Yes            QC Division form ID.
+subDepartmentId   Long       Yes            Must match the saved QC form.
+divisionId        Long       Yes            QC division/type ID.
+division          String     Yes            Canonical API division name.
+actionType        Status     Yes            APPROVED or REJECTED.
+remarks           String     No             Approval remarks.
+rejectionReason   String     For rejection  Required for REJECTED.
+subType           String     Conditional    Saved division subtype.
+premixNo          Integer    Conditional    Required for premix divisions.
+motorId           String     Conditional    Required for motor divisions.
+stageType         StageType  Conditional    Required for MIXING; PREMIX or
+                                             FINAL_MIX.
+
+premixNo and motorId must not be sent together.
+
+
+CASE 1: RAW MATERIAL REVALIDATION
+=================================
+
+Do not send premixNo, motorId, or stageType.
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 101,
+  "division": "RAW_MATERIAL_REVALIDATION",
+  "actionType": "APPROVED",
+  "remarks": "Revalidation details verified"
+}
+
+Response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division approved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "status": "IN_PROGRESS",
+    "divisionId": 101,
+    "division": "RAW_MATERIAL_REVALIDATION",
+    "divisionSubmissionType": "SUBMIT",
+    "divisionStatus": "APPROVED",
+    "unlockedDivision": "RAW_MATERIAL_PROCESSING",
+    "allDivisionsApproved": false,
+    "pendingDivisionCount": 10,
+    "approvedDivisionCount": 1,
+    "totalDivisionCount": 11,
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": []
+  },
+  "timestamp": "<timestamp>"
+}
+
+
+CASE 2: WEIGHTMENT OR ANOTHER DIVISION-LEVEL WORKFLOW
+=====================================================
+
+Weightment uses the same shape as Revalidation. The division must already
+have saved data in WAITING_FOR_APPROVAL status.
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 11,
+  "division": "WEIGHTMENT",
+  "actionType": "APPROVED",
+  "remarks": "Weightment verified"
+}
+
+The response uses the same QcDivisionFormResponse structure shown above, with
+divisionId 11 and division WEIGHTMENT.
+
+
+CASE 3: RAW MATERIAL PROCESSING PREMIX
+======================================
+
+Pass premixNo. Do not pass motorId or stageType.
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 102,
+  "division": "RAW_MATERIAL_PROCESSING",
+  "premixNo": 1,
+  "actionType": "APPROVED",
+  "remarks": "Premix processing verified"
+}
+
+Response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division approved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "status": "IN_PROGRESS",
+    "divisionId": 102,
+    "division": "RAW_MATERIAL_PROCESSING",
+    "premixNo": 1,
+    "premixSubmissionStatus": "APPROVED",
+    "divisionStatus": "IN_PROGRESS",
+    "unlockedDivision": null,
+    "allDivisionsApproved": false,
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [
+      {
+        "division": "RAW_MATERIAL_PROCESSING",
+        "premixNo": 1,
+        "premixSubmissionType": "SUBMIT",
+        "premixSubmissionStatus": "APPROVED"
+      }
+    ]
+  },
+  "timestamp": "<timestamp>"
+}
+
+
+CASE 4: MIXING PREMIX OR FINAL MIX
+=================================
+
+Pass premixNo and stageType. stageType must be PREMIX or FINAL_MIX.
+
+PREMIX request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 2,
+  "division": "MIXING",
+  "premixNo": 1,
+  "stageType": "PREMIX",
+  "actionType": "APPROVED",
+  "remarks": "Mixing premix verified"
+}
+
+FINAL_MIX request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 2,
+  "division": "MIXING",
+  "premixNo": 1,
+  "stageType": "FINAL_MIX",
+  "actionType": "APPROVED",
+  "remarks": "Final mix verified"
+}
+
+Response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division approved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "status": "IN_PROGRESS",
+    "divisionId": 2,
+    "division": "MIXING",
+    "premixNo": 1,
+    "stageType": "PREMIX",
+    "premixSubmissionStatus": "APPROVED",
+    "divisionStatus": "IN_PROGRESS",
+    "allDivisionsApproved": false,
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [
+      {
+        "division": "MIXING",
+        "stageType": "PREMIX",
+        "premixNo": 1,
+        "premixSubmissionType": "SUBMIT",
+        "premixSubmissionStatus": "APPROVED"
+      }
+    ]
+  },
+  "timestamp": "<timestamp>"
+}
+
+
+CASE 5: MOTOR-BASED DIVISION
+============================
+
+Pass motorId. Do not pass premixNo or stageType. The example uses Hardware;
+other motor divisions use the same request shape with their own division ID
+and division name.
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 3,
+  "division": "HARDWARE",
+  "motorId": "MOTOR-001",
+  "actionType": "APPROVED",
+  "remarks": "Hardware checks verified"
+}
+
+Response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division approved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "status": "IN_PROGRESS",
+    "divisionId": 3,
+    "division": "HARDWARE",
+    "motorId": "MOTOR-001",
+    "motorSubmissionStatus": "APPROVED",
+    "divisionStatus": "IN_PROGRESS",
+    "allDivisionsApproved": false,
+    "allMotorsApproved": false,
+    "pendingMotorCount": 1,
+    "approvedMotorCount": 1,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 0,
+    "totalMotorCount": 2,
+    "divisionStatuses": [],
+    "motorStatuses": [
+      {
+        "division": "HARDWARE",
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "motorSubmissionStatus": "APPROVED"
+      }
+    ],
+    "premixStatuses": []
+  },
+  "timestamp": "<timestamp>"
+}
+
+
+CASE 6: REJECTION
+=================
+
+actionType REJECTED requires rejectionReason for every approval scope.
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11,
+  "divisionId": 3,
+  "division": "HARDWARE",
+  "motorId": "MOTOR-001",
+  "actionType": "REJECTED",
+  "rejectionReason": "Measured value is outside the accepted range"
+}
+
+
+COMMON UNIFIED RESPONSE FIELDS
+==============================
+
+QcDivisionFormResponse can contain:
+
+- formId, batchId, subDepartmentId, formSubmissionType, status
+- divisionId, division, subType
+- motorId or premixNo/stageType, depending on the approval scope
+- motorSubmissionType and motorSubmissionStatus for a motor action
+- premixSubmissionType and premixSubmissionStatus for a premix action
+- divisionSubmissionType and divisionStatus for a division action
+- unlockedDivision
+- allDivisionsApproved and division counts
+- allMotorsApproved and motor counts
+- divisionStatuses, motorStatuses, premixStatuses, and divisionDetails
+- created/submitted/approved audit fields
+
+Fields that do not apply to the selected approval scope can be null or omitted.
+
+
+LEGACY APPROVER ENDPOINTS
+=========================
+
+Premix:
+
+POST /api/v1/approver/form/premix/change-status
+
+For a QC Division form, include divisionId and division with the existing
+premixNo, subType, and stageType fields.
+
+Motor:
+
+POST /api/v1/approver/form/motor/change-status
+
+For a QC Division form, include divisionId and division with the existing
+motorId and subType fields.
+
+
+APPROVER VALIDATION ERRORS
+==========================
+
+The API rejects the request when:
+
+- divisionId or division is missing.
+- divisionId and division do not match.
+- The division does not belong to the supplied QC form workflow.
+- premixNo is missing for a premix division.
+- motorId is supplied for a premix division.
+- stageType is missing for MIXING.
+- motorId is missing for a motor division.
+- premixNo is supplied for a motor division.
+- A unit identifier is supplied for a division-level approval.
+- The selected division/unit is not waiting for approval.
+- rejectionReason is missing for REJECTED.
+- The selected division data or unit is not present in the QC form.
+
+Representative error response:
+
+{
+  "success": false,
+  "code": 400,
+  "message": "divisionId 3 does not match division MIXING",
+  "errorCode": "INVALID_REQUEST",
+  "requestId": "<request-id>",
+  "timestamp": "<timestamp>"
+}
+
+
+QC STRICT DTO CONTRACT - BRUNO REQUEST AND RESPONSE BODIES
+===========================================================
+
+This section matches commit 3581bec (qc dtos fixed). Use these bodies for
+Bruno testing. The older create/update examples after this section are marked
+obsolete because some of their field names pre-date the strict DTOs.
+
+
+WHAT CHANGED IN COMMIT 3581bec
+==============================
+
+- CreateQcDivisionRequest.divisionDetails and
+  UpdateQcDivisionRequest.divisionDetails changed from List<Map<String,Object>>
+  to List<DivisionDetailInput>.
+- DivisionDetailInput selects a fixed data DTO from division/subType.
+- Unknown fields are rejected at division, division-data, section, process,
+  premix, stage, and motor levels.
+- DivisionDetailDto.data is now a typed DivisionDataResponse instead of a Map.
+- Details responses now include submittedBy/submittedAt and
+  approvedBy/approvedAt at division/unit level when those values exist.
+- Request DTOs contain only client-owned fields. Do not copy backend-managed
+  response fields into create/update requests.
+
+Backend-managed fields rejected in a request include divisionId, status,
+divisionSubmissionStatus, premixSubmissionStatus, motorSubmissionStatus,
+remarks/rejectionReason used by approval, actionBy/actionAt, submittedBy,
+submittedAt, approvedBy, and approvedAt.
+
+
+BRUNO SETUP
+===========
+
+Method header for POST/PUT calls:
+
+  Content-Type: application/json
+  Authorization: Bearer {{accessToken}}
+
+Suggested Bruno environment variables:
+
+  baseUrl          Example: http://localhost:8080
+  accessToken      Logged-in User token
+  batchId          Existing active batch ID
+  subDepartmentId Existing QC sub-department numeric ID
+  formId           Set from the create response
+  motorId          A motor ID that belongs to batchId
+
+The sample IDs are placeholders. Replace BATCH-2026-001, QC-F-0001, and
+MOTOR-001 with records that exist in the test database.
+
+
+1. CREATE - ONE COMPLETE STRICT-DTO REQUEST
+===========================================
+
+Method: POST
+URL: {{baseUrl}}/api/v1/user/qc-division/create
+
+This body exercises every division DTO in one request. Only the initially
+unlocked Raw Material Revalidation division has a submission action. The
+remaining division objects are template data and intentionally omit their
+submission-type field. To test later workflow actions, use the Update bodies
+in section 3 after the preceding division is approved.
+
+For source-backed motor divisions, the QC request now reuses the current
+direct DTO body from that source department:
+
+- HARDWARE uses Case Preparation motor fields (`motorId`,
+  `abradingOperation`, `bellowBonding`, `tceCleaning`, `preHeating`,
+  `linerCoatingOperation`, and `dispatchToCasting`). Do not send the legacy
+  `motorIdNo` or `sections` array.
+- CASTING and CURING use the direct Casting/Curing fields (`motorId`, setup
+  objects, and named `castingSections`/`curingSections`). Do not send legacy
+  QC casting blocks or a curing section array.
+- DE_CORING uses `motorId` and the direct Casting/Curing `decoringDetails`
+  object.
+- POST_CURE uses the direct Post Cure motor fields, including the nested
+  `epoxyPreparationIngredients` object.
+- NDT uses `NdtMotorDto` fields. Do not send the legacy `processDetails`
+  array.
+
+Add `motorSubmissionType` (`DRAFT` or `SUBMIT`) to the motor being actioned.
+The backend controls `motorSubmissionStatus` and all approval/audit fields.
+
+Request body:
+
+QC Division uses subDepartmentId 11. Subdepartment 115 belongs to STF and
+must not be used for this endpoint.
+
+{
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "RAW_MATERIAL",
+      "subType": "RAW_MATERIAL_REVALIDATION",
+      "divisionSubmissionType": "DRAFT",
+      "data": {
+        "materials": [
+          {
+            "ingredient": "HTPB",
+            "qcDetails": [
+              {
+                "lotBatchNumber": "LOT-HTPB-001",
+                "parameter": "OH Value",
+                "specification": "40-50 mg KOH/g",
+                "result": "45",
+                "validity": "2026-12-31",
+                "remarks": "Within specification",
+                "qcCertificate": ["FILE-RMR-001"]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "RAW_MATERIAL",
+      "subType": "RAW_MATERIAL_PROCESSING",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixDate": "2026-08-20",
+            "materialType": "BOTH",
+            "solidProcess": [
+              {
+                "materialId": 1,
+                "materialCode": "AP",
+                "materialName": "Ammonium Perchlorate",
+                "gradeId": 101,
+                "gradeCode": "COARSE",
+                "schemaVersion": "1.0",
+                "schemaType": "RAW_MATERIALS",
+                "sections": [
+                  {
+                    "sectionId": "feedMaterialDetails",
+                    "sectionData": [
+                      {"lotNumber": "LOT-AP-001", "quantity": "250 kg"}
+                    ]
+                  },
+                  {
+                    "sectionId": "blendingDryingParameters",
+                    "sectionData": [
+                      {
+                        "operation": "Blending",
+                        "setParameter": "30 min",
+                        "actualParameter": "30 min"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "dryingOperationRvd",
+                    "sectionData": [
+                      {
+                        "operation": "Drying",
+                        "setParameter": "Temp: 65 +/- 2 C; Duration: 90 min",
+                        "actualParameter": "65 C; 90 min",
+                        "startTime": "09:00",
+                        "endTime": "10:30"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "unloadingDispatch",
+                    "sectionData": [
+                      {
+                        "binNumber": "BIN-AP-001",
+                        "binCapacity": "100 kg",
+                        "filledQuantity": "95 kg"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "particleSizeDistribution",
+                    "sectionData": [
+                      {
+                        "psdRequirement": "Above 500 micrometre, % max",
+                        "specification": "5",
+                        "result": "4.2"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "dryingTrayOven",
+                    "sectionData": [
+                      {
+                        "ovenType": "TRAY_OVEN",
+                        "ovenNumber": "OVEN-01",
+                        "ovenSetTemperature": "65 C",
+                        "startDatetime": "2026-08-20T09:00:00",
+                        "endDatetime": "2026-08-20T10:30:00",
+                        "moisture": "0.05%",
+                        "observation": "Within limit"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "sieving",
+                    "sectionData": [
+                      {
+                        "sievingDispatchDatetime": "2026-08-20T11:00:00",
+                        "sievedQuantity": "95 kg",
+                        "sieveMeshSize": "500 micrometre",
+                        "observation": "Completed"
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "shiftingToMixing",
+                    "sectionData": [
+                      {
+                        "numberOfDrums": "2",
+                        "amountOfMaterial": "95 kg"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "liquidProcess": [
+              {
+                "materialId": 2,
+                "materialCode": "HTPB",
+                "materialName": "Hydroxyl-Terminated Polybutadiene",
+                "gradeId": 201,
+                "gradeCode": "STANDARD",
+                "schemaVersion": "1.0",
+                "schemaType": "RAW_MATERIALS",
+                "sections": [
+                  {
+                    "sectionId": "blending",
+                    "sectionData": [
+                      {
+                        "mfgBatchLotNumber": "LOT-HTPB-001",
+                        "totalQuantity": "100 kg",
+                        "equipmentId": "BLENDER-01",
+                        "agitatorRpm": "50",
+                        "processTemperature": "25 C",
+                        "jacketTemperature": "24 C",
+                        "startDatetime": "2026-08-20T09:00:00",
+                        "endDatetime": "2026-08-20T10:00:00",
+                        "observation": "Normal",
+                        "qcChecks": [
+                          {
+                            "parameter": "Viscosity",
+                            "specification": "Within limit",
+                            "result": "Passed"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "sectionId": "tdiProcessing",
+                    "sectionData": [
+                      {
+                        "mfgBatchLotNumber": "LOT-TDI-001",
+                        "quantity": "50 kg",
+                        "dispatchDatetime": "2026-08-20T11:30:00",
+                        "observation": "Accepted",
+                        "totalQuantitySentForPremix": "48 kg"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "MIXING",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixDetails": {
+              "bowlNo": "PM-001",
+              "dateOfPremix": "2026-08-20",
+              "mixerBuildingNo": "MB-01",
+              "premixQty": "500 kg",
+              "parameters": [
+                {
+                  "parameterId": "TEMP",
+                  "parameter": "Temperature",
+                  "parameterName": "Premix temperature",
+                  "specification": "20-30 C",
+                  "value": "25",
+                  "values": ["25"],
+                  "remarks": "Within limit"
+                }
+              ],
+              "viscosityBuildUp": []
+            },
+            "finalMixDetails": {
+              "bowlNo": "FM-001",
+              "dateOfFinalMix": "2026-08-20",
+              "mixerBuildingNo": "MB-01",
+              "premixQty": "500 kg",
+              "parameters": [],
+              "viscosityBuildUp": [
+                {"srNo": 1, "time": "10 min", "finalMix1": "1200"}
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "HARDWARE",
+      "data": {
+        "motorDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "prrcClearanceDate": "2026-08-20",
+            "abradingOperation": {
+              "typeOfCasing": "COMPOSITE",
+              "typeOfInsulation": "ROCASIN",
+              "abradingWheelType": "G36",
+              "abradingDetails": [
+                {"SR_NO": 1, "operation": "First-cut abrading", "value": "Completed", "remarksObservations": "Surface acceptable", "attachments": "FILE-ABRADING-001"}
+              ]
+            },
+            "bellowBonding": {
+              "adhesiveDetails": "ADH-001",
+              "heBellowDimension": "120 x 40 x 3",
+              "heMotorPastingDateTime": "2026-08-20T09:00:00Z",
+              "neBellowDimension": "120 x 50 x 3",
+              "neMotorPastingDateTime": "2026-08-20T10:00:00Z",
+              "numberOfSpacers": 8,
+              "pastingDetails": "Alignment verified",
+              "remarks": "Accepted"
+            },
+            "tceCleaning": {
+              "tceCleaningDateTime": "2026-08-20T11:00:00Z",
+              "solventUsedQtyKg": 0.5,
+              "observation": "Surface clean",
+              "testReport": "FILE-TCE-001"
+            },
+            "preHeating": {
+              "vacuumBaggingApplied": "YES",
+              "vacuumApplied": 4,
+              "preHeatingRecipe": "85_90C_6HR_10HR_VACUUM",
+              "temperatureDuration": [
+                {"SR_NO": 1, "parameter": "Temperature @ 1 Hour", "value": "88", "remarks": ""}
+              ],
+              "preHeatingMonitoring": []
+            },
+            "linerCoatingOperation": {
+              "linerType": "HEMCOAT_3L",
+              "batchNo": "HEM-BATCH-001",
+              "batchSize": 200,
+              "premixIngredients": [],
+              "finalMixIngredients": [],
+              "qualifyingSubscaleBatchNo": "QUAL-001",
+              "qualificationParameters": [],
+              "linerApplicationLog": [],
+              "rh": "55"
+            },
+            "dispatchToCasting": {
+              "dispatchVisualObservations": [
+                {"SR_NO": 1, "parameter": "Liner surface", "observations": "Acceptable"}
+              ],
+              "dispatchToCastingDetails": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "CASTING",
+      "data": {
+        "motorDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "motorReceivedAt": "2026-08-21T05:35:00",
+            "setup": {
+              "castingType": "Single",
+              "castingStation": "15B"
+            },
+            "castingSections": {
+              "finalAssemblyDetails": {
+                "motorCasing": [
+                  {
+                    "mandrelMeasurements": [
+                      {"srNo": 1, "aMock": 250, "bMock": 245, "bFinal": 2.6, "cMock": 5, "cFinal": 247.4, "bellowsThicknessD": 2.76, "eMock": 2.24, "eFinal": 244.64}
+                    ],
+                    "feedPipeDistance": [
+                      {"srNo": 1, "reading1": 120, "reading2": 135}
+                    ],
+                    "emptyMotorWeight": 70
+                  }
+                ]
+              },
+              "castingProcess": {
+                "finalMixBowlDetails": [
+                  {"srNo": 1, "bowlId": "FINAL_MIX 1 / Bowl No.3", "bowlReceiptTime": "03:20:00", "initialWeight": 80, "finalWeight": 90, "initialSlurryDepth": 10, "dcOpenTime": "02:15:00", "dcCloseTime": "02:20:00", "slurryDepthAfterDc": 7, "ballValveOpenTime": "02:20:00"}
+                ],
+                "castingFromBowlDetails": [
+                  {"srNo": 1, "bowlId": "FINAL_MIX 1 / Bowl No.3", "timeInterval": 3, "rh": 55, "viscosity": 38, "motorId": "MOTOR-001", "slurryDepth": 5, "slurryCast": 70, "flowRate": 80, "valveOpening": 60, "vacuumLevel": 500}
+                ],
+                "initialVacuum": 45,
+                "vacuumPressureCasting": 55,
+                "vacuumPressureSoaking": 65
+              },
+              "slurryCastDetails": {
+                "slurryCastFromBowls": [
+                  {"rowKey": "1", "fmMotorLabel": "FINAL_MIX 1 / Bowl No.3", "slurryCast": 80}
+                ]
+              },
+              "postCastOperations": {
+                "postCastTable": [
+                  {"srNo": 1, "activity": "Soaking Time", "details": "02:20"}
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "CURING",
+      "data": {
+        "curingDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "motorReceivedAt": "2026-08-21T05:35:00",
+            "curingSetup": {
+              "oven": "15B",
+              "ovenNo": "2",
+              "curingType": "CONFINED_CURING",
+              "configuration": "Single motor",
+              "motorsToCureCount": 1,
+              "ovensUtilized": 1
+            },
+            "curingSections": {
+              "curingCycles": {
+                "curingTable": [
+                  {"srNo": 1, "temperature": 40, "time": 90, "startDate": "2026-07-30", "startTime": "08:00:00", "endDate": "2026-07-30", "endTime": "09:30:00", "hotWaterStatus": "ON", "propellantPressure": 2.5}
+                ]
+              },
+              "postCuringDetails": {
+                "otherObservations": "Cycle completed",
+                "visualObservation": "No visible defect",
+                "pressurePlateRemovalDateTime": "2026-08-23T11:00:00",
+                "shoreAHardness": 75,
+                "decoringDispatchDateTime": "2026-08-23T12:00:00"
+              },
+              "decoringDetails": {
+                "decoringDate": "2026-08-24",
+                "buildingNo": "14C",
+                "decoringLoad": 250,
+                "decoringRemarks": "Completed",
+                "decoringVisualObservation": "Satisfactory"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "DE_CORING",
+      "data": {
+        "deCoringDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "decoringDetails": {
+              "decoringDate": "2026-08-24",
+              "buildingNo": "14C",
+              "decoringLoad": 250,
+              "decoringRemarks": "Completed successfully",
+              "decoringVisualObservation": "Satisfactory"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "TRIMMING",
+      "subType": "MAIN_BATCH",
+      "data": {
+        "numberOfMotors": 1,
+        "trimmingDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "motorStage": 1,
+            "motorReceivedDate": "2026-08-25",
+            "trimmingOperationDetails": [
+              {
+                "machineDetails": "TRIMMER-01",
+                "startDate": "2026-08-25",
+                "completionDate": "2026-08-25",
+                "arborSize": "50 mm",
+                "cutterSize": "12 mm",
+                "remarks": "Completed"
+              }
+            ],
+            "trimmingMeasurementDetails": [
+              {
+                "SR_NO": 1,
+                "DIMENSION": "Outer diameter",
+                "SPECIFIED": "100 +/- 1 mm",
+                "MEASUREMENT_STAGE": "FINAL",
+                "R2T": "100.1",
+                "R2B": "100.0",
+                "R1L": "99.9",
+                "R1R": "100.0"
+              }
+            ],
+            "trimmingRemarks": {
+              "remarks": "Within specified limits",
+              "reportLink": "FILE-TRIM-001"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "POST_CURE",
+      "data": {
+        "postCureMotorDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "motorReceiptDate": "2026-08-26T08:00:00",
+            "operationType": "LOOSE_FLAP_FILLING",
+            "inhibitorType": "IR1",
+            "looseFlapFillingDetails": {
+              "bellowRemovalDetails": [
+                {
+                  "location": "HE",
+                  "fromDate": "2026-08-26",
+                  "toDate": "2026-08-26",
+                  "observations": "Completed"
+                }
+              ],
+              "epoxyPreparationIngredients": {
+                "batchNo": "LF-QC-BATCH-001",
+                "preparationDate": "2026-08-26",
+                "parameters": [
+                  {"rowKey": "1", "ingredient": "A-125 Hardener", "mfgLot": "LOT-A125-001", "partsByWeight": "60 +/-1", "quantityTaken": 60.5},
+                  {"rowKey": "TOTAL", "ingredient": "Total Quantity", "mfgLot": "N/A", "partsByWeight": "N/A", "quantityTaken": 117.1}
+                ]
+              },
+              "qualificationDetails": {
+                "batchNo": "LF-QC-BATCH-001",
+                "preparationDate": "2026-08-26",
+                "parameters": [
+                  {"srNo": 1, "parameter": "Viscosity", "specification": "Pass", "result": "Pass"}
+                ],
+                "qcReport": "FILE-PC-QC-001"
+              },
+              "fillingDetails": [
+                {
+                  "location": "HE",
+                  "fromDate": "2026-08-26",
+                  "toDate": "2026-08-26",
+                  "quantityFilled": 2.5,
+                  "observations": "Normal"
+                }
+              ]
+            },
+            "inhibitionDetails": {
+              "premixDetails": {
+                "batchNo": "IR1-PM-001",
+                "preparationDate": "2026-08-26",
+                "ingredients": []
+              },
+              "finalMixDetails": {
+                "batchNo": "IR1-FM-001",
+                "preparationDate": "2026-08-26",
+                "ingredients": []
+              },
+              "qualificationDetails": {
+                "batchNo": "IR1-QC-001",
+                "preparationDate": "2026-08-26",
+                "parameters": [
+                  {"srNo": 1, "parameter": "Bond strength", "specification": "Pass", "result": "Pass"}
+                ],
+                "qcReport": "FILE-IR1-QC-001"
+              },
+              "inhibitorBatchDetails": {
+                "batchNo": "IR1-001",
+                "batchSize": 50
+              },
+              "applicationDetails": [
+                {"location": "NE", "fromDate": "2026-08-27", "toDate": "2026-08-27", "quantityApplied": 2.5, "observations": "Accepted"}
+              ],
+              "dispatchDetails": {"dispatchDate": "2026-08-28", "dispatchStation": "NDT"},
+              "notApplicableRemarks": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "NDT",
+      "data": {
+        "motorDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "radiographyDetails": {
+              "equipmentUtilized": ["RT-01"],
+              "xrayBeamEnergies": ["6 MeV"],
+              "radiographyPlanId": "PLAN-001",
+              "radiographyPlanDetails": [
+                {"numberOfSections": 4, "numberOfOrientations": 2, "sfd": 80, "numberOfNormalExposures": 4, "numberOfTangentialExposures": 2, "detectorType": "DR"}
+              ]
+            },
+            "additionalExposureDetails": [
+              {"sectionNumber": 1, "orientation": "0 DEG", "numberOfExposure": 1}
+            ],
+            "radiographyObservations": [
+              {
+                "sectionNumber": 1,
+                "orientation": "0 DEG",
+                "observation": "Accepted",
+                "uploadedImages": [
+                  {"fileId": "FILE-NDT-IMAGE-001", "status": "UPLOADED", "fileName": "ndt-1.jpg", "fileUrl": "/files/ndt-1.jpg"}
+                ]
+              }
+            ],
+            "visualInspectionDetails": [
+              {"observationType": "Surface", "sectionNumber": 1, "orientation": "0 DEG", "observation": "No visible defect", "uploadedImages": []}
+            ],
+            "uploadedVideos": [],
+            "signedNdtReport": {
+              "additionalRemarks": "Accepted",
+              "report": {"fileId": "FILE-NDT-REPORT-001", "status": "UPLOADED", "fileName": "ndt-report.pdf", "fileUrl": "/files/ndt-report.pdf"}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "PROPELLANT_PROPERTIES",
+      "data": {
+        "motors": [
+          {
+            "motorId": "MOTOR-001",
+            "processes": [
+              {
+                "processType": "MECHANICAL_PROPERTIES",
+                "data": {
+                  "mechanicalProperties": {
+                    "samples": [
+                      {
+                        "PROPERTY": "Tensile strength",
+                        "SAMPLE_NO": 1,
+                        "SPECIFICATION": "Minimum 5",
+                        "REMARKS": "Passed",
+                        "FM_1": 5.2,
+                        "FM_2": 5.4,
+                        "AVG": 5.3,
+                        "STD_DEV": 0.1
+                      }
+                    ],
+                    "statistics": {},
+                    "uploadGraph": "FILE-PROP-GRAPH-001"
+                  }
+                }
+              },
+              {
+                "processType": "INTERFACE_PROPERTIES",
+                "data": {
+                  "interfaceProperties": {
+                    "samples": [
+                      {
+                        "PROPERTY": "Peel strength",
+                        "SAMPLE_NO": 1,
+                        "SPECIFICATION": "Minimum 2 N/mm",
+                        "REMARKS": "Passed",
+                        "FM_1": 2.4,
+                        "FM_2": 2.3,
+                        "AVG": 2.35,
+                        "STD_DEV": 0.05,
+                        "UPLOAD_GRAPH": "FILE-INTERFACE-GRAPH-001"
+                      }
+                    ],
+                    "statistics": {}
+                  }
+                }
+              },
+              {
+                "processType": "SSBR_UBR_BURN_RATE",
+                "data": {
+                  "burnRateDetails": [
+                    {
+                      "PROPERTY": "Burn rate",
+                      "SPECIFICATION": "5-7 mm/s",
+                      "FM_1": 6.1,
+                      "FM_2": 6.2,
+                      "AVG": 6.15,
+                      "STD_DEV": 0.05,
+                      "UPLOAD_GRAPH": "FILE-BURN-GRAPH-001"
+                    }
+                  ]
+                }
+              },
+              {
+                "processType": "BALLISTIC_EVALUATION",
+                "data": {
+                  "ballisticDetails": [
+                    {
+                      "DETAILS": "Ballistic evaluation",
+                      "SPECIFICATION": "Nominal curve",
+                      "FM_1_BEM_NO": "BEM-001",
+                      "FM_2_BEM_NO": "BEM-002"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "WEIGHTMENT",
+      "data": {
+        "motorWeightDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "weights": [
+              {
+                "srNo": "H",
+                "weightParameter": "Weight of propellant",
+                "weightKg": 500.25,
+                "calculation": {
+                  "formula": "G-(A+B+C+D-E+F)",
+                  "autoCalculate": true
+                }
+              }
+            ]
+          }
+        ],
+        "weighscaleDetails": {
+          "weighscaleNo": "WS-01",
+          "calibrationDueDate": "2027-01-31"
+        }
+      }
+    }
+  ]
+}
+
+
+2. CREATE RESPONSE BODY
+=======================
+
+Status: 201 Created
+
+Create intentionally does not return divisionDetails. Use the Details API
+after create when the saved typed division bodies are needed.
+
+{
+  "success": true,
+  "code": 201,
+  "message": "QC division form saved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "BATCH-2026-001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "IN_PROGRESS",
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [],
+    "divisionDetails": null,
+    "createdBy": {"id": "USER-001", "fullName": "QC User"},
+    "createdAt": "2026-08-20T12:00:00",
+    "submittedBy": null,
+    "submittedAt": null,
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "timestamp": "2026-08-20T12:00:00"
+}
+
+divisionStatuses is populated from the configured QC division master in a
+real response. motorStatuses and premixStatuses depend on the batch motors,
+premix count, and saved actions.
+
+
+3. UPDATE REQUEST BODY FOR EACH DIVISION
+========================================
+
+Method: PUT
+URL: {{baseUrl}}/api/v1/user/qc-division/update
+
+Use this outer body and put exactly one division item from the list below in
+divisionDetails. Test divisions in workflow order and approve each submitted
+unit before submitting the next locked division.
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    <paste one division item here>
+  ]
+}
+
+The JSON below shows the action field and minimum DTO-exact data for each
+division. Replace <paste one division item here> with one object only; do not
+include the labels or separators.
+
+RAW_MATERIAL_REVALIDATION (division ID 101, division-scoped):
+
+{
+  "division": "RAW_MATERIAL",
+  "subType": "RAW_MATERIAL_REVALIDATION",
+  "divisionSubmissionType": "SUBMIT",
+  "data": {
+    "materials": [
+      {
+        "ingredient": "HTPB",
+        "qcDetails": [
+          {
+            "lotBatchNumber": "LOT-HTPB-001",
+            "parameter": "OH Value",
+            "specification": "40-50 mg KOH/g",
+            "result": "45",
+            "validity": "2026-12-31",
+            "remarks": "Within specification",
+            "qcCertificate": ["FILE-RMR-001"]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+RAW_MATERIAL_PROCESSING (division ID 102, premix-scoped):
+
+{
+  "division": "RAW_MATERIAL",
+  "subType": "RAW_MATERIAL_PROCESSING",
+  "data": {
+    "premixes": [
+      {
+        "premixNo": 1,
+        "premixSubmissionType": "SUBMIT",
+        "premixDate": "2026-08-20",
+        "materialType": "SOLID",
+        "solidProcess": [],
+        "liquidProcess": []
+      }
+    ]
+  }
+}
+
+MIXING (division ID 2, PREMIX stage):
+
+{
+  "division": "MIXING",
+  "data": {
+    "premixes": [
+      {
+        "premixNo": 1,
+        "premixDetails": {
+          "premixSubmissionType": "SUBMIT",
+          "bowlNo": "PM-001",
+          "dateOfPremix": "2026-08-20",
+          "mixerBuildingNo": "MB-01",
+          "premixQty": "500 kg",
+          "parameters": [],
+          "viscosityBuildUp": []
+        }
+      }
+    ]
+  }
+}
+
+MIXING FINAL_MIX uses the same object, but replace premixDetails with:
+
+"finalMixDetails": {
+  "premixSubmissionType": "SUBMIT",
+  "bowlNo": "FM-001",
+  "dateOfFinalMix": "2026-08-21",
+  "mixerBuildingNo": "MB-01",
+  "premixQty": "500 kg",
+  "parameters": [],
+  "viscosityBuildUp": []
+}
+
+HARDWARE (division ID 3, motor-scoped):
+
+{
+  "division": "HARDWARE",
+  "data": {
+    "motorDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "prrcClearanceDate": "2026-08-20",
+        "abradingOperation": {
+          "typeOfCasing": "COMPOSITE",
+          "typeOfInsulation": "ROCASIN",
+          "abradingWheelType": "G36",
+          "abradingDetails": []
+        }
+      }
+    ]
+  }
+}
+
+CASTING (division ID 4, motor-scoped):
+
+{
+  "division": "CASTING",
+  "data": {
+    "motorDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "motorReceivedAt": "2026-08-21T05:35:00",
+        "setup": {"castingType": "Single", "castingStation": "15B"},
+        "castingSections": {
+          "finalAssemblyDetails": {"motorCasing": []},
+          "castingProcess": {"finalMixBowlDetails": [], "castingFromBowlDetails": []},
+          "slurryCastDetails": {"slurryCastFromBowls": []},
+          "postCastOperations": {"postCastTable": []}
+        }
+      }
+    ]
+  }
+}
+
+CURING (division ID 5, motor-scoped):
+
+{
+  "division": "CURING",
+  "data": {
+    "curingDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "motorReceivedAt": "2026-08-21T05:35:00",
+        "curingSetup": {"oven": "15B", "ovenNo": "2", "curingType": "CONFINED_CURING"},
+        "curingSections": {
+          "curingCycles": {"curingTable": []},
+          "postCuringDetails": null,
+          "decoringDetails": null
+        }
+      }
+    ]
+  }
+}
+
+DE_CORING (division ID 6, motor-scoped):
+
+{
+  "division": "DE_CORING",
+  "data": {
+    "deCoringDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "decoringDetails": {
+          "decoringDate": "2026-08-24",
+          "buildingNo": "14C",
+          "decoringLoad": 250,
+          "decoringRemarks": "Completed successfully",
+          "decoringVisualObservation": "Satisfactory"
+        }
+      }
+    ]
+  }
+}
+
+TRIMMING (division ID 7, motor-scoped):
+
+{
+  "division": "TRIMMING",
+  "subType": "MAIN_BATCH",
+  "data": {
+    "numberOfMotors": 1,
+    "trimmingDetails": [
+      {
+        "motorIdNo": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "motorStage": 1,
+        "motorReceivedDate": "2026-08-25",
+        "trimmingOperationDetails": [],
+        "trimmingMeasurementDetails": [],
+        "trimmingRemarks": {"remarks": "Within limit", "reportLink": "FILE-TRIM-001"}
+      }
+    ]
+  }
+}
+
+POST_CURE (division ID 8, motor-scoped):
+
+{
+  "division": "POST_CURE",
+  "data": {
+    "postCureMotorDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorReceiptDate": "2026-08-26T08:00:00",
+        "motorSubmissionType": "SUBMIT",
+        "operationType": "LOOSE_FLAP_FILLING",
+        "inhibitorType": "IR1",
+        "looseFlapFillingDetails": {
+          "bellowRemovalDetails": [],
+          "epoxyPreparationIngredients": {
+            "batchNo": "LF-QC-BATCH-001",
+            "preparationDate": "2026-08-26",
+            "parameters": []
+          },
+          "qualificationDetails": {
+            "batchNo": "LF-QC-BATCH-001",
+            "preparationDate": "2026-08-26",
+            "parameters": [],
+            "qcReport": "FILE-PC-QC-001"
+          },
+          "fillingDetails": []
+        },
+        "inhibitionDetails": null
+      }
+    ]
+  }
+}
+
+NDT (division ID 9, motor-scoped):
+
+{
+  "division": "NDT",
+  "data": {
+    "motorDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "radiographyDetails": {
+          "equipmentUtilized": [],
+          "xrayBeamEnergies": [],
+          "radiographyPlanId": "PLAN-001",
+          "radiographyPlanDetails": []
+        },
+        "additionalExposureDetails": [],
+        "radiographyObservations": [],
+        "visualInspectionDetails": [],
+        "uploadedVideos": [],
+        "signedNdtReport": null
+      }
+    ]
+  }
+}
+
+PROPELLANT_PROPERTIES (division ID 10, motor-scoped):
+
+{
+  "division": "PROPELLANT_PROPERTIES",
+  "data": {
+    "motors": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "processes": [
+          {
+            "processType": "MECHANICAL_PROPERTIES",
+            "data": {
+              "mechanicalProperties": {
+                "samples": [],
+                "statistics": {},
+                "uploadGraph": "FILE-PROP-GRAPH-001"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+
+WEIGHTMENT (division ID 11, motor-scoped):
+
+{
+  "division": "WEIGHTMENT",
+  "data": {
+    "motorWeightDetails": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "weights": [
+          {
+            "srNo": "H",
+            "weightParameter": "Weight of propellant",
+            "weightKg": 500.25,
+            "calculation": {"formula": "G-(A+B+C+D-E+F)", "autoCalculate": true}
+          }
+        ]
+      }
+    ],
+    "weighscaleDetails": {"weighscaleNo": "WS-01", "calibrationDueDate": "2027-01-31"}
+  }
+}
+
+
+4. UPDATE RESPONSE BODY
+======================
+
+Status: 200 OK
+
+Unlike Create, Update returns divisionDetails. This is a representative
+response after saving one NDT motor as DRAFT. The actual status arrays contain
+all configured divisions/units for the selected batch.
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division form updated successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "BATCH-2026-001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "IN_PROGRESS",
+    "divisionStatuses": [],
+    "motorStatuses": [
+      {
+        "division": "NDT",
+        "subType": null,
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "DRAFT",
+        "motorSubmissionStatus": "IN_PROGRESS",
+        "remarks": null,
+        "rejectionReason": null,
+        "submittedBy": null,
+        "submittedAt": null,
+        "approvedBy": null,
+        "approvedAt": null
+      }
+    ],
+    "premixStatuses": [],
+    "divisionDetails": [
+      {
+        "divisionId": 9,
+        "division": "NDT",
+        "subType": null,
+        "divisionSubmissionType": null,
+        "divisionSubmissionStatus": null,
+        "status": "IN_PROGRESS",
+        "remarks": null,
+        "rejectionReason": null,
+        "actionBy": null,
+        "actionAt": null,
+        "submittedBy": null,
+        "submittedAt": null,
+        "approvedBy": null,
+        "approvedAt": null,
+        "data": {
+          "motorDetails": [
+            {
+              "motorId": "MOTOR-001",
+              "radiographyDetails": {"equipmentUtilized": [], "xrayBeamEnergies": [], "radiographyPlanDetails": []},
+              "additionalExposureDetails": [],
+              "radiographyObservations": [],
+              "visualInspectionDetails": [],
+              "uploadedVideos": [],
+              "signedNdtReport": null,
+              "motorSubmissionType": "DRAFT",
+              "motorSubmissionStatus": "IN_PROGRESS",
+              "remarks": null,
+              "rejectionReason": null,
+              "submittedBy": null,
+              "submittedAt": null,
+              "approvedBy": null,
+              "approvedAt": null
+            }
+          ]
+        }
+      }
+    ],
+    "createdBy": {"id": "USER-001", "fullName": "QC User"},
+    "createdAt": "2026-08-20T12:00:00",
+    "submittedBy": null,
+    "submittedAt": null,
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "timestamp": "2026-08-20T12:05:00"
+}
+
+
+5. DETAILS REQUEST AND ALL-DIVISION RESPONSE SHAPES
+===================================================
+
+Method: POST
+URL: {{baseUrl}}/api/v1/user/qc-division/details
+
+Request body:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11
+}
+
+Status: 200 OK
+
+Response envelope:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division form details fetched successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "BATCH-2026-001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "IN_PROGRESS",
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [],
+    "divisionDetails": [
+      <typed response items shown below>
+    ],
+    "createdBy": {"id": "USER-001", "fullName": "QC User"},
+    "createdAt": "2026-08-20T12:00:00",
+    "submittedBy": null,
+    "submittedAt": null,
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "timestamp": "2026-08-20T12:10:00"
+}
+
+The saved business data inside each response item is identical to the matching
+strict request data in section 1. The response DTO adds workflow fields at the
+following exact locations:
+
+Division                       Response data type / managed field location
+-----------------------------  ------------------------------------------------
+RAW_MATERIAL_REVALIDATION      DivisionDetailDto fields around data.materials
+RAW_MATERIAL_PROCESSING        data.premixes[].premixSubmissionStatus + audit
+MIXING                         data.premixes[].premixDetails/finalMixDetails
+                               each receive premixSubmissionStatus + audit
+HARDWARE                       data.motorDetails[].motorSubmissionStatus + audit
+CASTING                        data.motorDetails[].motorSubmissionStatus + audit
+CURING                         data.curingDetails[].motorSubmissionStatus + audit
+DE_CORING                      data.deCoringDetails[].motorSubmissionStatus + audit
+TRIMMING                       data.trimmingDetails[].motorSubmissionStatus + audit
+POST_CURE                      data.postCureMotorDetails[].motorSubmissionStatus
+                               + audit
+NDT                            data.motorDetails[].motorSubmissionStatus + audit
+PROPELLANT_PROPERTIES          data.motors[].motorSubmissionStatus + audit
+WEIGHTMENT                     data.motorWeightDetails[].motorSubmissionStatus
+                               + audit
+
+Typed divisionDetails response items (business arrays shortened only to keep
+the Bruno reference readable):
+
+[
+  {
+    "divisionId": 101,
+    "division": "RAW_MATERIAL",
+    "subType": "RAW_MATERIAL_REVALIDATION",
+    "divisionSubmissionType": "DRAFT",
+    "divisionSubmissionStatus": "IN_PROGRESS",
+    "status": "IN_PROGRESS",
+    "submittedBy": null,
+    "submittedAt": null,
+    "approvedBy": null,
+    "approvedAt": null,
+    "data": {"materials": []}
+  },
+  {
+    "divisionId": 102,
+    "division": "RAW_MATERIAL",
+    "subType": "RAW_MATERIAL_PROCESSING",
+    "status": "IN_PROGRESS",
+    "data": {
+      "premixes": [
+        {
+          "premixNo": 1,
+          "premixDate": "2026-08-20",
+          "materialType": "BOTH",
+          "solidProcess": [],
+          "liquidProcess": [],
+          "premixSubmissionType": "DRAFT",
+          "premixSubmissionStatus": "IN_PROGRESS",
+          "submittedBy": null,
+          "submittedAt": null,
+          "approvedBy": null,
+          "approvedAt": null
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 2,
+    "division": "MIXING",
+    "status": "IN_PROGRESS",
+    "data": {
+      "premixes": [
+        {
+          "premixNo": 1,
+          "premixDetails": {
+            "bowlNo": "PM-001",
+            "parameters": [],
+            "viscosityBuildUp": [],
+            "premixSubmissionType": "DRAFT",
+            "premixSubmissionStatus": "IN_PROGRESS"
+          },
+          "finalMixDetails": {
+            "bowlNo": "FM-001",
+            "parameters": [],
+            "viscosityBuildUp": []
+          }
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 3,
+    "division": "HARDWARE",
+    "status": "IN_PROGRESS",
+    "data": {
+      "motorDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "prrcClearanceDate": "2026-08-20",
+          "abradingOperation": {"typeOfCasing": "COMPOSITE", "typeOfInsulation": "ROCASIN", "abradingDetails": []},
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 4,
+    "division": "CASTING",
+    "status": "IN_PROGRESS",
+    "data": {
+      "motorDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "setup": {"castingType": "Single", "castingStation": "15B"},
+          "castingSections": {"finalAssemblyDetails": {"motorCasing": []}},
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 5,
+    "division": "CURING",
+    "status": "IN_PROGRESS",
+    "data": {
+      "curingDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "curingSetup": {"oven": "15B", "ovenNo": "2", "curingType": "CONFINED_CURING"},
+          "curingSections": {"curingCycles": {"curingTable": []}},
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 6,
+    "division": "DE_CORING",
+    "status": "IN_PROGRESS",
+    "data": {
+      "deCoringDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "decoringDetails": {"decoringDate": "2026-08-24", "buildingNo": "14C", "decoringLoad": 250},
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 7,
+    "division": "TRIMMING",
+    "subType": "MAIN_BATCH",
+    "status": "IN_PROGRESS",
+    "data": {
+      "numberOfMotors": 1,
+      "trimmingDetails": [
+        {
+          "motorIdNo": "MOTOR-001",
+          "trimmingOperationDetails": [],
+          "trimmingMeasurementDetails": [],
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 8,
+    "division": "POST_CURE",
+    "status": "IN_PROGRESS",
+    "data": {
+      "postCureMotorDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "motorReceiptDate": "2026-08-26T08:00:00",
+          "operationType": "LOOSE_FLAP_FILLING",
+          "inhibitorType": "IR1",
+          "looseFlapFillingDetails": {"bellowRemovalDetails": [], "epoxyPreparationIngredients": {"parameters": []}, "qualificationDetails": {"parameters": []}, "fillingDetails": []},
+          "inhibitionDetails": null,
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 9,
+    "division": "NDT",
+    "status": "IN_PROGRESS",
+    "data": {
+      "motorDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "radiographyDetails": {"equipmentUtilized": [], "xrayBeamEnergies": [], "radiographyPlanDetails": []},
+          "additionalExposureDetails": [],
+          "radiographyObservations": [],
+          "visualInspectionDetails": [],
+          "uploadedVideos": [],
+          "signedNdtReport": null,
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 10,
+    "division": "PROPELLANT_PROPERTIES",
+    "status": "IN_PROGRESS",
+    "data": {
+      "motors": [
+        {
+          "motorId": "MOTOR-001",
+          "processes": [],
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ]
+    }
+  },
+  {
+    "divisionId": 11,
+    "division": "WEIGHTMENT",
+    "status": "IN_PROGRESS",
+    "data": {
+      "motorWeightDetails": [
+        {
+          "motorId": "MOTOR-001",
+          "weights": [],
+          "motorSubmissionType": "DRAFT",
+          "motorSubmissionStatus": "IN_PROGRESS"
+        }
+      ],
+      "weighscaleDetails": {"weighscaleNo": "WS-01", "calibrationDueDate": "2027-01-31"}
+    }
+  }
+]
+
+Important: the bracketed list is a response-shape reference, not a standalone
+API response. In Bruno, inspect the actual list at data.divisionDetails.
+
+
+6. REMAINING STRICT DISCRIMINATORS
+==================================
+
+Raw Material Processing sectionId values:
+
+  feedMaterialDetails
+  blendingDryingParameters
+  dryingOperationRvd
+  unloadingDispatch
+  particleSizeDistribution
+  dryingTrayOven
+  sieving
+  shiftingToMixing
+  blending
+  tdiProcessing
+
+Propellant processType values:
+
+  MECHANICAL_PROPERTIES
+  INTERFACE_PROPERTIES
+  SSBR_UBR_BURN_RATE
+  BALLISTIC_EVALUATION
+
+Hardware, Casting, Curing, De-coring, Post Cure, and NDT no longer use QC
+section/process discriminators; they reuse their source-department DTOs.
+Unsupported remaining discriminator values return 400.
+
+
+7. FINAL FORM SUBMISSION
+========================
+
+After every enabled division/unit is approved, final submission uses an empty
+divisionDetails array:
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "SUBMIT",
+  "divisionDetails": []
+}
+
+The form then moves to WAITING_FOR_COMPLETE_APPROVAL. Final form submission is
+rejected until all enabled division, premix/stage, and motor units are approved.
+
+
+PRE-STRICT DTO CREATE/UPDATE EXAMPLES (OBSOLETE - DO NOT USE)
+==============================================================
+
+IMPORTANT
+=========
+
+This section is retained only for historical reference. Do not paste these
+bodies into Bruno. Use "QC STRICT DTO CONTRACT - BRUNO REQUEST AND RESPONSE
+BODIES" above. Several shapes below are rejected by commit 3581bec.
+
+- Create and draft Update accept the complete divisionDetails array.
+- Each division's data object is stored and returned without changing its
+  division-specific collection names or nesting.
+- Only the currently unlocked division may contain a new DRAFT or SUBMIT
+  submission action. Locked division bodies may still be included as template
+  data, but their submission-type field must be omitted.
+- Existing submission field names remain unchanged:
+    divisionSubmissionType - division-scoped divisions
+    premixSubmissionType   - premix/stage-scoped divisions
+    motorSubmissionType    - motor-scoped divisions
+- DRAFT maps to IN_PROGRESS. SUBMIT maps to WAITING_FOR_APPROVAL.
+- Approval state fields returned by Details may be round-tripped unchanged.
+- Raw Material uses the frontend parent/subtype shape. Send division as
+  RAW_MATERIAL and subType as RAW_MATERIAL_REVALIDATION or
+  RAW_MATERIAL_PROCESSING. The subtype resolves division ID 101 or 102.
+- POST_CURE_OPERATION is accepted as an input alias and is returned/stored as
+  the canonical division name POST_CURE.
+
+
+CREATE ENDPOINT
+===============
+
+Method: POST
+URL: /api/v1/user/qc-division/create
+
+Complete valid payload shape:
+
+{
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "RAW_MATERIAL",
+      "subType": "RAW_MATERIAL_REVALIDATION",
+      "divisionSubmissionType": "DRAFT",
+      "data": {
+        "materials": [
+          {
+            "ingredient": "HTPB",
+            "qcDetails": [
+              {
+                "lotBatchNumber": "LOT-HTPB-001",
+                "parameter": "OH Value, mg KOH/g",
+                "specification": "40-50",
+                "result": "45",
+                "validity": "2026-12-31",
+                "remarks": "OK",
+                "qcCertificate": ["FILE-001"]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "RAW_MATERIAL",
+      "subType": "RAW_MATERIAL_PROCESSING",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "solidProcessingDetails": [
+              {
+                "srNo": 1,
+                "rawMaterial": "AP",
+                "grade": "COARSE",
+                "operation": "Blending/Drying",
+                "parameters": [
+                  {
+                    "parameter": "Moisture",
+                    "specification": "",
+                    "actualValue": "",
+                    "remarks": "",
+                    "qcCertificate": []
+                  }
+                ]
+              }
+            ],
+            "liquidProcessingDetails": [
+              {
+                "srNo": 1,
+                "rawMaterial": "HTPB",
+                "acemBatchNo": "ACEM-001",
+                "operation": "Blending",
+                "parameters": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "MIXING",
+      "subType": null,
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixDetails": {
+              "bowlNo": "PM-001",
+              "dateOfPremix": "2026-06-15",
+              "mixerBuildingNo": "MB-01",
+              "premixQty": 500,
+              "parameters": []
+            },
+            "finalMixDetails": {
+              "bowlNo": "FM-001",
+              "dateOfFinalMix": "2026-06-15",
+              "mixerBuildingNo": "MB-01",
+              "premixQty": 500,
+              "parameters": [],
+              "viscosityBuildUp": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "HARDWARE",
+      "subType": null,
+      "data": {
+        "motorDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "processDetails": {
+              "abrading": {"firstCut": [], "secondCut": []},
+              "preheating": [],
+              "linerCoating": [],
+              "dispatch": {
+                "looseFlapPunctures": {"he": 0, "ne": 1},
+                "dispatchDateTime": "2026-06-15T15:30:00"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "CASTING",
+      "subType": null,
+      "data": {
+        "motorDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "castingSelection": {"castingType": "SINGLE"},
+            "finalAssembly": {"assemblyDate": "2026-06-15", "mandrelAssembly": []},
+            "propellantCasting": {"dateOfCasting": "2026-06-16", "castingDetails": []},
+            "weightmentDetails": {"loadCellReading": {"initial": 1000, "final": 1500}, "totalWeight": 500},
+            "postCastOperations": {
+              "soakingDetails": {"soakingDuration": 24},
+              "pressurePlateAssembly": {"required": "YES"},
+              "pressurePlateDetails": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "CURING",
+      "subType": null,
+      "data": {
+        "curingDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "motorSubmissionType": "DRAFT",
+            "motorStage": "Stage 1",
+            "curingType": "Confined Curing",
+            "oven": "15A",
+            "ovenNumber": "Oven no 1",
+            "motorPositioningDateTime": "2026-06-20T08:00:00",
+            "curingSections": []
+          }
+        ]
+      }
+    },
+    {
+      "division": "DE_CORING",
+      "subType": null,
+      "data": {
+        "deCoringDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "deCoringLoad": 250,
+            "deCoringDateTime": "2026-06-27T10:30:00",
+            "observations": "Completed successfully"
+          }
+        ]
+      }
+    },
+    {
+      "division": "TRIMMING",
+      "subType": "MAIN_BATCH",
+      "data": {
+        "numberOfMotors": 1,
+        "trimmingDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "motorSubmissionType": "DRAFT",
+            "motorStage": 1,
+            "motorReceivedDate": "2026-06-28",
+            "trimmingOperationDetails": [
+              {
+                "machineDetails": "Trimming Machine-01",
+                "startDate": "2026-06-28",
+                "completionDate": "2026-06-29",
+                "arborSize": "50 mm",
+                "cutterSize": "12 mm",
+                "remarks": "Operation completed"
+              }
+            ],
+            "trimmingMeasurementDetails": [],
+            "trimmingRemarks": {
+              "remarks": "Trimming completed within specified limits",
+              "reportLink": "FILE-TRIMMING-001"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "POST_CURE_OPERATION",
+      "subType": null,
+      "data": {
+        "postCureMotorDetails": [
+          {
+            "motorIdNo": "MOTOR-001",
+            "looseFlapFillingDetails": {},
+            "inhibitionDetails": {
+              "inhibitorType": "IR1",
+              "qualificationDetails": {},
+              "applicationDetails": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "division": "PROPELLANT_PROPERTIES",
+      "subType": null,
+      "data": {
+        "motors": [
+          {
+            "motorId": "MOTOR-001",
+            "processes": [
+              {
+                "processType": "MECHANICAL_PROPERTIES",
+                "data": {"mechanicalProperties": {"samples": [], "statistics": {}}}
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "NDT",
+      "subType": null,
+      "data": {
+        "motorDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "processDetails": [
+              {"process": "RADIOGRAPHY", "radiographyDetails": [], "radiographyObservations": []},
+              {"process": "VISUAL_INSPECTION", "visualInspectionDetails": []},
+              {"process": "UPLOAD_MEDIA", "mediaDetails": {"uploadVideoPhoto": []}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "division": "WEIGHTMENT",
+      "subType": null,
+      "data": {
+        "weighscaleDetails": {"weighscaleNo": "", "calibrationDueDate": ""},
+        "motorWeightDetails": [
+          {
+            "motorId": "MOTOR-001",
+            "weights": [
+              {
+                "srNo": "H",
+                "weightParameter": "Weight of propellant kg",
+                "weightKg": "",
+                "calculation": {"formula": "G-(A+B+C+D-E+F)", "autoCalculate": true}
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+The example puts divisionSubmissionType only on the initially unlocked Raw
+Material Revalidation division. All other division data is retained as sent
+and remains TO_BE_INITIATED until its division is unlocked.
+
+
+WHERE SUBMISSION TYPES ARE SENT
+===============================
+
+1. RAW_MATERIAL_REVALIDATION and WEIGHTMENT
+
+Add at divisionDetails item level:
+
+  "divisionSubmissionType": "DRAFT"
+
+or:
+
+  "divisionSubmissionType": "SUBMIT"
+
+2. RAW_MATERIAL_PROCESSING
+
+Add inside the selected data.premixes item:
+
+  "premixSubmissionType": "DRAFT"
+
+or SUBMIT. Each premix has independent status.
+
+3. MIXING
+
+The payload remains one data.premixes item containing both nested detail
+objects. Add premixSubmissionType inside the stage being saved:
+
+{
+  "premixNo": 1,
+  "premixDetails": {
+    "premixSubmissionType": "SUBMIT",
+    "bowlNo": "PM-001",
+    "parameters": []
+  },
+  "finalMixDetails": {
+    "bowlNo": "FM-001",
+    "parameters": [],
+    "viscosityBuildUp": []
+  }
+}
+
+Later, after PREMIX is approved, Final Mix can be submitted without changing
+the outer structure:
+
+{
+  "premixNo": 1,
+  "premixDetails": {
+    "premixSubmissionType": "SUBMIT",
+    "premixSubmissionStatus": "APPROVED",
+    "bowlNo": "PM-001",
+    "parameters": []
+  },
+  "finalMixDetails": {
+    "premixSubmissionType": "SUBMIT",
+    "bowlNo": "FM-001",
+    "parameters": [],
+    "viscosityBuildUp": []
+  }
+}
+
+PREMIX and FINAL_MIX therefore keep separate premixSubmissionStatus values.
+The Mixing division is APPROVED, and the next QC division is unlocked, only
+when PREMIX and FINAL_MIX are approved for every configured premix number.
+
+4. MOTOR-SCOPED DIVISIONS
+
+Add motorSubmissionType inside each selected motor object. The exact array and
+identifier keys remain division-specific:
+
+Division                       Array key                  Identifier key
+-----------------------------  -------------------------  --------------
+HARDWARE                       motorDetails               motorIdNo
+CASTING                        motorDetails               motorIdNo
+CURING                         curingDetails              motorIdNo
+DE_CORING                      deCoringDetails            motorIdNo
+TRIMMING                       trimmingDetails            motorIdNo
+POST_CURE_OPERATION/POST_CURE  postCureMotorDetails       motorIdNo
+PROPELLANT_PROPERTIES          motors                     motorId
+NDT                            motorDetails               motorId
+
+Example:
+
+{
+  "motorIdNo": "MOTOR-001",
+  "motorSubmissionType": "SUBMIT",
+  "processDetails": {}
+}
+
+All motor IDs must belong to the batch. A motor division unlocks its successor
+only after all configured batch motors are approved for that division.
+
+For CURING, motorPositioningDateTime is supplied inside each curingDetails
+object before curingSections. Use ISO local date-time format:
+YYYY-MM-DDTHH:mm:ss (for example, 2026-06-20T08:00:00).
+
+For TRIMMING, each trimmingDetails motor supports the complete source data:
+
+- trimmingOperationDetails: rows from the Manufacturing Trimming
+  TRIMMING_DETAILS section.
+- trimmingMeasurementDetails: flattened rows from TRIMMING_COMMON_FORMAT.
+- trimmingRemarks: an object containing business remarks and reportLink from
+  TRIMMING_REMARKS. Keep these business remarks nested because motor-level
+  remarks is reserved for the QC approval workflow.
+
+Both Create and draft Update accept this same structure. QC details returns
+the saved fields unchanged under divisionDetails[].data.trimmingDetails[].
+
+
+UPDATE ENDPOINT
+===============
+
+Method: PUT
+URL: /api/v1/user/qc-division/update
+
+Draft update uses the identical divisionDetails structure shown under Create.
+Only formId is added to the outer object:
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "RAW_MATERIAL",
+      "subType": "RAW_MATERIAL_PROCESSING",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixSubmissionType": "DRAFT",
+            "solidProcessingDetails": [],
+            "liquidProcessingDetails": []
+          }
+        ]
+      }
+    }
+  ]
+}
+
+The request above is a valid partial update. The complete divisionDetails array
+from Create may also be sent after adding formId; both forms retain the same
+division-wise structure. Partial arrays are merged by premix/motor identity;
+they do not rename or flatten the stored structure.
+
+There is no separate final form submission. Form-level formSubmissionType
+remains DRAFT during create/update calls. When approval of the last required
+division/unit makes every enabled division APPROVED, the backend automatically
+sets formSubmissionType to SUBMIT and the form/batch-stage status to
+FINAL_APPROVAL_COMPLETED.
+
+
+DETAILS ENDPOINT AND RESPONSE BODY
+==================================
+
+Method: POST
+URL: /api/v1/user/qc-division/details
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 115
+}
+
+divisionDetails in the response uses the same division-specific data shape
+that was sent. The service adds workflow fields at their existing scope:
+
+- divisionSubmissionStatus beside divisionSubmissionType on division-scoped
+  DivisionDetail objects.
+- premixSubmissionStatus beside premixSubmissionType on Raw Material
+  Processing premixes and on each nested Mixing stage detail.
+- motorSubmissionStatus beside motorSubmissionType on each division-specific
+  motor object.
+- remarks, rejectionReason, actionBy, and actionAt are added at the same scope
+  after an approval action.
+
+Representative response data:
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "status": "IN_PROGRESS",
+  "allDivisionsApproved": false,
+  "divisionStatuses": [],
+  "motorStatuses": [],
+  "premixStatuses": [],
+  "divisionDetails": [
+    {
+      "divisionId": 2,
+      "division": "MIXING",
+      "subType": null,
+      "status": "IN_PROGRESS",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixDetails": {
+              "premixSubmissionType": "SUBMIT",
+              "premixSubmissionStatus": "APPROVED",
+              "bowlNo": "PM-001",
+              "parameters": []
+            },
+            "finalMixDetails": {
+              "premixSubmissionType": "DRAFT",
+              "premixSubmissionStatus": "IN_PROGRESS",
+              "bowlNo": "FM-001",
+              "parameters": [],
+              "viscosityBuildUp": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+
+
+PRE-STRICT VALIDATION NOTES (OBSOLETE)
+======================================
+
+- Create formSubmissionType must be DRAFT.
+- Create fails when an active QC form already exists for the batch.
+- Create/DRAFT Update requires at least one divisionDetails item; it may carry
+  the complete form array.
+- Division data is validated using its real collection and identity keys.
+- A new DRAFT/SUBMIT unit action is rejected while its division is locked.
+- premixNo must be within the batch's configured premix count.
+- Motor identifiers must belong to the batch.
+- WAITING_FOR_APPROVAL and APPROVED units cannot be edited.
+- Unchanged workflow fields returned by Details can be sent back during a
+  complete payload update.
+- Form-level SUBMIT is rejected because final completion is automatic.
+- Unit-level submissionType remains DRAFT or SUBMIT as before.
+
+
+OBSOLETE GENERIC SAVE CONTRACT - DO NOT USE
+===========================================
+
+The remainder of this file describes the earlier data.sections/data.motors
+proposal. It is retained only as implementation history and is superseded by
+the current division-wise contract above.
+
+
+QC CREATE, UPDATE, AND DETAILS APIs (OBSOLETE)
+==============================================
+
+GENERAL SAVE RULES
+==================
+
+- A QC form contains a sequential workflow of enabled QC divisions.
+- Only the currently unlocked division can be created or updated.
+- Every create or DRAFT update must contain exactly one divisionDetails item.
+- That divisionDetails item must contain exactly one division-level action,
+  one premix, or one motor.
+- A division/unit submission type can be DRAFT or SUBMIT:
+  - DRAFT produces IN_PROGRESS.
+  - SUBMIT produces WAITING_FOR_APPROVAL.
+- Entries in WAITING_FOR_APPROVAL or APPROVED status cannot be edited.
+- Rejected entries can be corrected and submitted again.
+- A final form SUBMIT is allowed only after all QC divisions are approved.
+
+
+CREATE QC FORM
+==============
+
+Method: POST
+URL: /api/v1/user/qc-division/create
+Authority: User
+Content-Type: application/json
+
+Create request fields:
+
+Field                Type    Required  Description
+-------------------  ------  --------  --------------------------------------
+batchId              String  Yes       Batch for which the QC form is created.
+subDepartmentId      Long    Yes       QC Division subdepartment ID: 11.
+formSubmissionType   Status  Yes       Must be DRAFT during creation.
+divisionDetails      Array   Yes       Exactly one division and one unit.
+
+With the default QC master sequence, RAW_MATERIAL_REVALIDATION is the first
+unlocked division and is therefore the normal Create payload. The premix and
+motor payloads below define the supported divisionDetails shapes; they are
+normally used through Update after those divisions become unlocked. They can
+be used during Create only if the configured QC master sequence makes that
+division the first unlocked division.
+
+
+CREATE VARIATION 1: DIVISION-LEVEL DATA
+=======================================
+
+Used by RAW_MATERIAL_REVALIDATION and WEIGHTMENT.
+
+Request:
+
+{
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "RAW_MATERIAL_REVALIDATION",
+      "divisionSubmissionType": "SUBMIT",
+      "data": {
+        "sections": [
+          {
+            "sectionId": "REVALIDATION_DETAILS",
+            "sectionData": [
+              {
+                "materialCode": "MAT-001",
+                "lotId": "LOT-001",
+                "result": "ACCEPTABLE"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+
+Rules:
+
+- divisionSubmissionType is required and must be DRAFT or SUBMIT.
+- data.sections is required.
+- Every section requires sectionId and sectionData array.
+- Do not use data.premixes or data.motors.
+
+
+CREATE VARIATION 2: RAW MATERIAL PROCESSING PREMIX
+==================================================
+
+Request:
+
+{
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "RAW_MATERIAL_PROCESSING",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "premixSubmissionType": "SUBMIT",
+            "sections": [
+              {
+                "sectionId": "PROCESSING_CHECKS",
+                "sectionData": [
+                  {
+                    "parameter": "Material condition",
+                    "observation": "Satisfactory"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+Rules:
+
+- data.premixes is required and must contain exactly one premix.
+- premixNo must be within the batch's configured premix count.
+- premixSubmissionType must be DRAFT or SUBMIT.
+- sections is required for the premix.
+- Do not send data.sections directly or data.motors.
+
+
+CREATE VARIATION 3: MIXING PREMIX OR FINAL MIX
+==============================================
+
+Mixing uses stageType to distinguish PREMIX 1 from FINAL_MIX 1.
+
+PREMIX request:
+
+{
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "MIXING",
+      "subType": "PREMIX",
+      "data": {
+        "premixes": [
+          {
+            "premixNo": 1,
+            "stageType": "PREMIX",
+            "premixSubmissionType": "SUBMIT",
+            "sections": [
+              {
+                "sectionId": "MIXING_CHECKS",
+                "sectionData": [
+                  {
+                    "parameter": "Mixing cycle",
+                    "observation": "Verified"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+For Final Mix, use:
+
+  "subType": "FINAL_MIX"
+
+and:
+
+  "stageType": "FINAL_MIX"
+
+All other fields use the same request shape.
+
+
+CREATE VARIATION 4: MOTOR-LEVEL DATA
+====================================
+
+Used by HARDWARE, CASTING, CURING, DE_CORING, TRIMMING, POST_CURE, NDT, and
+PROPELLANT_PROPERTIES.
+
+Request:
+
+{
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "HARDWARE",
+      "data": {
+        "motors": [
+          {
+            "motorId": "MOTOR-001",
+            "motorSubmissionType": "SUBMIT",
+            "sections": [
+              {
+                "sectionId": "HARDWARE_CHECKS",
+                "sectionData": [
+                  {
+                    "parameter": "Hardware condition",
+                    "observation": "Satisfactory"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+Rules:
+
+- data.motors is required and must contain exactly one motor.
+- motorId must belong to the batch.
+- motorSubmissionType must be DRAFT or SUBMIT.
+- sections is required for the motor.
+- Do not send data.sections directly or data.premixes.
+
+
+CREATE SUCCESS RESPONSE
+=======================
+
+The acted-on division/unit is returned at the top level. create does not return
+the complete divisionDetails collection.
+
+Representative premix response:
+
+{
+  "success": true,
+  "code": 201,
+  "message": "QC division form saved successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "WAITING_FOR_PARTIAL_APPROVAL",
+    "divisionId": 102,
+    "division": "RAW_MATERIAL_PROCESSING",
+    "premixNo": 1,
+    "premixSubmissionType": "SUBMIT",
+    "premixSubmissionStatus": "WAITING_FOR_APPROVAL",
+    "allDivisionsApproved": false,
+    "pendingDivisionCount": 11,
+    "approvedDivisionCount": 0,
+    "totalDivisionCount": 11,
+    "allMotorsApproved": false,
+    "pendingMotorCount": 0,
+    "approvedMotorCount": 0,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 0,
+    "totalMotorCount": 0,
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [],
+    "createdBy": {
+      "id": "USER-001",
+      "fullName": "User Name"
+    },
+    "createdAt": "<date-time>"
+  },
+  "timestamp": "<timestamp>"
+}
+
+For a motor action, the response uses motorId, motorSubmissionType, and
+motorSubmissionStatus. For a division action, it uses divisionSubmissionType
+and divisionStatus.
+
+
+UPDATE QC FORM
+==============
+
+Method: PUT
+URL: /api/v1/user/qc-division/update
+Authority: User
+Content-Type: application/json
+
+Update request fields:
+
+Field                Type    Required  Description
+-------------------  ------  --------  --------------------------------------
+formId               String  Yes       Existing QC Division form ID.
+batchId              String  Yes       Must belong to formId.
+subDepartmentId      Long    Yes       Must match the form; normally 11.
+formSubmissionType   Status  Yes       DRAFT for unit save or SUBMIT for final
+                                       form submission.
+divisionDetails      Array   Yes       One item for DRAFT; empty for final
+                                       SUBMIT.
+
+
+DRAFT UPDATE: DIVISION/PREMIX/MOTOR VARIATIONS
+==============================================
+
+For a DRAFT update, use the same divisionDetails variations documented under
+Create, with the following outer request:
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "DRAFT",
+  "divisionDetails": [
+    {
+      "division": "HARDWARE",
+      "data": {
+        "motors": [
+          {
+            "motorId": "MOTOR-001",
+            "motorSubmissionType": "DRAFT",
+            "sections": [
+              {
+                "sectionId": "HARDWARE_CHECKS",
+                "sectionData": [
+                  {
+                    "parameter": "Hardware condition",
+                    "observation": "Correction saved"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+The same outer formId/batchId fields apply when updating:
+
+- RAW_MATERIAL_REVALIDATION or WEIGHTMENT data.sections.
+- RAW_MATERIAL_PROCESSING data.premixes.
+- MIXING data.premixes with stageType.
+- Any motor division data.motors.
+
+
+FINAL QC FORM SUBMIT
+====================
+
+Final submission is separate from individual division/unit submission. It can
+be called only after all enabled QC divisions are approved.
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "batchId": "ACEM/2608/0001",
+  "subDepartmentId": 11,
+  "formSubmissionType": "SUBMIT",
+  "divisionDetails": []
+}
+
+Rules:
+
+- divisionDetails must be empty.
+- If any division is not approved, the API returns FINAL_APPROVAL_NOT_READY
+  with pending division details.
+- On success, form status becomes WAITING_FOR_COMPLETE_APPROVAL.
+
+
+UPDATE SUCCESS RESPONSE
+=======================
+
+Update returns QcDivisionFormResponse and includes the complete saved
+divisionDetails list.
+
+Representative motor update response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division form updated successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "IN_PROGRESS",
+    "divisionId": 3,
+    "division": "HARDWARE",
+    "motorId": "MOTOR-001",
+    "motorSubmissionType": "DRAFT",
+    "motorSubmissionStatus": "IN_PROGRESS",
+    "allDivisionsApproved": false,
+    "divisionStatuses": [],
+    "motorStatuses": [],
+    "premixStatuses": [],
+    "divisionDetails": [
+      {
+        "divisionId": 3,
+        "division": "HARDWARE",
+        "status": "IN_PROGRESS",
+        "data": {
+          "motors": [
+            {
+              "motorId": "MOTOR-001",
+              "motorSubmissionType": "DRAFT",
+              "motorSubmissionStatus": "IN_PROGRESS",
+              "sections": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "timestamp": "<timestamp>"
+}
+
+
+GET QC FORM DETAILS
+===================
+
+Method: POST
+URL: /api/v1/user/qc-division/details
+Authorities: User, Approver, System Manager
+Content-Type: application/json
+
+Request:
+
+{
+  "formId": "QC-F-0001",
+  "subDepartmentId": 11
+}
+
+The details request is not division-specific. It returns the complete QC form,
+all workflow statuses, and all saved divisionDetails. The client selects the
+required division, premix, or motor from the response.
+
+
+DETAILS RESPONSE: DIVISION-LEVEL VARIATION
+==========================================
+
+Inside data.divisionDetails:
+
+{
+  "divisionId": 101,
+  "division": "RAW_MATERIAL_REVALIDATION",
+  "divisionSubmissionType": "SUBMIT",
+  "divisionSubmissionStatus": "WAITING_FOR_APPROVAL",
+  "status": "WAITING_FOR_PARTIAL_APPROVAL",
+  "data": {
+    "sections": [
+      {
+        "sectionId": "REVALIDATION_DETAILS",
+        "sectionData": []
+      }
+    ]
+  }
+}
+
+
+DETAILS RESPONSE: PREMIX VARIATION
+==================================
+
+Inside data.divisionDetails:
+
+{
+  "divisionId": 102,
+  "division": "RAW_MATERIAL_PROCESSING",
+  "status": "WAITING_FOR_PARTIAL_APPROVAL",
+  "data": {
+    "premixes": [
+      {
+        "premixNo": 1,
+        "premixSubmissionType": "SUBMIT",
+        "premixSubmissionStatus": "WAITING_FOR_APPROVAL",
+        "sections": []
+      }
+    ]
+  }
+}
+
+
+DETAILS RESPONSE: MIXING VARIATION
+==================================
+
+Mixing can have separate DivisionDetail entries for PREMIX and FINAL_MIX.
+
+{
+  "divisionId": 2,
+  "division": "MIXING",
+  "subType": "PREMIX",
+  "status": "WAITING_FOR_PARTIAL_APPROVAL",
+  "data": {
+    "premixes": [
+      {
+        "premixNo": 1,
+        "stageType": "PREMIX",
+        "premixSubmissionType": "SUBMIT",
+        "premixSubmissionStatus": "WAITING_FOR_APPROVAL",
+        "sections": []
+      }
+    ]
+  }
+}
+
+FINAL_MIX uses subType and stageType FINAL_MIX.
+
+
+DETAILS RESPONSE: MOTOR VARIATION
+=================================
+
+Inside data.divisionDetails:
+
+{
+  "divisionId": 3,
+  "division": "HARDWARE",
+  "status": "WAITING_FOR_PARTIAL_APPROVAL",
+  "data": {
+    "motors": [
+      {
+        "motorId": "MOTOR-001",
+        "motorSubmissionType": "SUBMIT",
+        "motorSubmissionStatus": "WAITING_FOR_APPROVAL",
+        "sections": []
+      }
+    ]
+  }
+}
+
+
+COMPLETE DETAILS RESPONSE ENVELOPE
+==================================
+
+{
+  "success": true,
+  "code": 200,
+  "message": "QC division form details fetched successfully",
+  "data": {
+    "formId": "QC-F-0001",
+    "batchId": "ACEM/2608/0001",
+    "subDepartmentId": 11,
+    "formSubmissionType": "DRAFT",
+    "status": "IN_PROGRESS",
+    "allDivisionsApproved": false,
+    "pendingDivisionCount": 11,
+    "approvedDivisionCount": 0,
+    "totalDivisionCount": 11,
+    "allMotorsApproved": false,
+    "pendingMotorCount": 0,
+    "approvedMotorCount": 0,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 0,
+    "totalMotorCount": 0,
+    "divisionStatuses": [
+      {
+        "divisionId": 101,
+        "division": "RAW_MATERIAL_REVALIDATION",
+        "sequence": 1,
+        "status": "WAITING_FOR_PARTIAL_APPROVAL",
+        "allUnitsApproved": false,
+        "pendingUnitCount": 1,
+        "approvedUnitCount": 0,
+        "rejectedUnitCount": 0,
+        "waitingForApprovalUnitCount": 1,
+        "inProgressUnitCount": 0,
+        "totalUnitCount": 1
+      }
+    ],
+    "motorStatuses": [],
+    "premixStatuses": [],
+    "divisionDetails": [],
+    "createdBy": {
+      "id": "USER-001",
+      "fullName": "User Name"
+    },
+    "createdAt": "<date-time>",
+    "submittedBy": null,
+    "submittedAt": null,
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "timestamp": "<timestamp>"
+}
+
+Top-level action-specific fields such as division, motorId, premixNo, and
+stageType are null in a normal details response because details returns the
+whole form rather than one save action.
+
+
+CREATE/UPDATE VALIDATION ERRORS
+===============================
+
+- Create formSubmissionType must be DRAFT.
+- Create fails if a QC form already exists for the batch.
+- formId, batchId, and subDepartmentId must identify the same form on update.
+- Exactly one divisionDetails item and one unit are required for a DRAFT save.
+- The selected division must be unlocked.
+- data.sections is required for division-level data.
+- data.premixes is required for premix divisions.
+- data.motors is required for motor divisions.
+- sectionId and sectionData are required for every section.
+- premixNo must be valid for the batch.
+- motorId must belong to the batch.
+- Submission type must be DRAFT or SUBMIT.
+- WAITING_FOR_APPROVAL and APPROVED entries cannot be modified.
+- Final SUBMIT requires empty divisionDetails and all divisions approved.
+
+
+THREE PREREQUISITE CREATE REQUESTS - BRUNO READY
+================================================
+
+Replace the sample project, batch, motor, and sub-department identifiers with
+identifiers available in the target environment. Send Authorization as a
+Bearer token and Content-Type as application/json.
+
+
+1. RMC / ROCKET MOTOR CASING
+----------------------------
+
+Method: POST
+URL: /api/v1/user/rocket-motor-casing/form/create
+
+{
+  "subDepartmentId": 3,
+  "projectId": "PROJECT-2026-001",
+  "motorStage": 1,
+  "motorId": "Motor-2026-001",
+  "formSubmissionType": "DRAFT",
+  "sections": {
+    "motorReceipt": {
+      "casingType": "COMPOSITE",
+      "receivingDate": "2026-08-13",
+      "itemsReceived": {
+        "itemType": "RUBBER_SHEET",
+        "description": "Rubber Sheet",
+        "dimension": "11",
+        "unit": "mm",
+        "receiptStatus": "RECEIVED",
+        "observations": "Received"
+      },
+      "clearances": {
+        "greenCardStatus": "RECEIVED",
+        "greenCardNo": "gc-2026-01",
+        "clearanceDate": "2026-08-13",
+        "authority": "Rocket casing authority QC",
+        "detailsAndObservations": ""
+      },
+      "insulation": {
+        "insulationCuringDate": "2026-08-13",
+        "type": "ROCASIN",
+        "reportNo": "rbr-001",
+        "receiptStatus": "RECEIVED",
+        "insulationSpecification": {
+          "insulationType": "ROCASIN",
+          "specifications": [
+            {
+              "category": "Rubber Mechanical Properties",
+              "parameters": [
+                {
+                  "specificationCode": "ROC-001",
+                  "reported": 89,
+                  "acemSpec": 90
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "ndtUtReport": {
+        "postPptUtDate": "2026-08-13",
+        "ndtDate": "2026-08-14",
+        "observations": "No abnormal indication"
+      },
+      "acemNdtObservations": "Satisfactory",
+      "projectRubberSurfaceObservations": "Surface acceptable",
+      "otherDetails": ""
+    },
+    "visualInspection": [
+      {
+        "srNo": 1,
+        "itemKey": "MOTOR_OUTER_SURFACE",
+        "description": "Motor Outer Surface condition",
+        "observations": "ALL OK",
+        "remark": "",
+        "subItems": []
+      },
+      {
+        "srNo": 7,
+        "itemKey": "INSULATION_LINING_SURFACE",
+        "description": "Insulation Lining Surface Condition",
+        "observations": "ALL OK",
+        "remark": "",
+        "subItems": [
+          {
+            "itemKey": "INSULATION_COLOR",
+            "description": "Color",
+            "observations": "COLOURLESS",
+            "remark": ""
+          }
+        ]
+      }
+    ],
+    "weightment": {
+      "weightWithoutHarness": {
+        "value": 50,
+        "unit": "kg"
+      },
+      "weightWithHarness": {
+        "value": 55,
+        "unit": "kg"
+      },
+      "weighscaleCalibration": {
+        "equipmentDetails": "FINE",
+        "calibrationDueDate": "2026-08-14"
+      }
+    },
+    "dimensionalInspection": [
+      {
+        "paramId": "DIM-1-001",
+        "paramName": "HE Polar Boss Metal ID",
+        "side": "HE",
+        "sequenceNo": 1,
+        "specifiedDimension": {
+          "minValue": 143,
+          "maxValue": 145.5,
+          "unit": "mm",
+          "source": "ACEM"
+        },
+        "readings": {
+          "r2tR2b": 144.1,
+          "r1rR1l": 144.2,
+          "tlBr": 144.3,
+          "trBl": 144.2
+        },
+        "looseFlap": {
+          "arcLength": 10,
+          "axialLength": 5
+        },
+        "remarks": "Within range",
+        "isWithinRange": true
+      }
+    ],
+    "mockTrial": {
+      "basicDetails": {
+        "castingStation": "15B",
+        "mandrelId": "1",
+        "bottomCupId": "2"
+      },
+      "motorDimensions": [
+        {
+          "srNo": 1,
+          "lfRubberThicknessHe": {
+            "value": 2.5,
+            "unit": "mm"
+          },
+          "heBossWidthWithoutLfRubber": {
+            "value": 140,
+            "unit": "mm"
+          },
+          "heDiaId": {
+            "value": 144,
+            "unit": "mm"
+          },
+          "motorLength": {
+            "heOuterToNeOuter": {
+              "value": 250,
+              "unit": "mm"
+            },
+            "heInnerToNeInner": {
+              "value": 245,
+              "unit": "mm"
+            },
+            "neOuterToHeInner": {
+              "value": 247,
+              "unit": "mm"
+            }
+          }
+        }
+      ],
+      "mandrelAssemblyMeasurements": [
+        {
+          "srNo": 1,
+          "mandrelRestOnDomeA": 250,
+          "mandrelRestOnBottomCupB": 245,
+          "differenceC": 5,
+          "bellowThicknessD": 2.76,
+          "mandrelLiftE": 2.24
+        }
+      ]
+    },
+    "reportUpload": {
+      "ndtUtReport": [],
+      "visualInspectionReport": [],
+      "weighmentReport": [],
+      "dimensionalInspectionReport": [],
+      "mockTrialReport": [],
+      "insulationLiningReport": []
+    },
+    "radiographyDetails": {
+      "radiographyPlanId": "Plan-acem-1",
+      "radiographyPlanName": "Acem Radiography plan",
+      "radiographyPlanDetails": [
+        {
+          "numberOfSections": 1,
+          "numberOfOrientations": 360,
+          "sfd": 80,
+          "numberOfNormalExposures": 50,
+          "numberOfTangentialExposures": 90,
+          "detectorType": "DR"
+        }
+      ]
+    }
+  }
+}
+
+
+2. CASE PREPARATION
+-------------------
+
+Method: POST
+URL: /api/v1/user/case-preparation/form/create
+
+{
+  "batchId": "BATCH-2026-0001",
+  "batchType": "MAIN",
+  "subDepartmentId": 5,
+  "formSubmissionType": "DRAFT",
+  "casePreparationDetails": {
+    "motors": [
+      {
+        "motorId": "Motor-2026-001",
+        "prrcClearanceDate": "2026-08-12",
+        "motorSubmissionType": "DRAFT",
+        "abradingOperation": {
+          "typeOfCasing": "COMPOSITE",
+          "typeOfInsulation": "ROCASIN",
+          "abradingWheelType": "G36",
+          "abradingDetails": [
+            {
+              "SR_NO": 2,
+              "operation": "Start Date & Time",
+              "value": "2026-08-12T02:00:00.000Z",
+              "remarksObservations": "Second-cut abrading started.",
+              "attachments": ""
+            }
+          ]
+        },
+        "bellowBonding": {
+          "adhesiveDetails": "ADH-001",
+          "heBellowDimension": "120 x 40 x 3",
+          "heMotorPastingDateTime": "2026-08-12T23:00:00Z",
+          "neBellowDimension": "120 x 50 x 3",
+          "neMotorPastingDateTime": "2026-08-13T22:30:00Z",
+          "numberOfSpacers": 8,
+          "pastingDetails": "HE and NE bellows positioned and verified.",
+          "remarks": "Bellow bonding completed."
+        },
+        "tceCleaning": {
+          "tceCleaningDateTime": "2026-08-14T00:25:00Z",
+          "solventUsedQtyKg": 0.5,
+          "observation": "Surface visually clean and free from loose dust.",
+          "testReport": "Aamantran_CIRA_Security_Document-1.pdf"
+        },
+        "preHeating": {
+          "vacuumBaggingApplied": "YES",
+          "vacuumApplied": 4,
+          "preHeatingRecipe": "85_90C_6HR_10HR_VACUUM",
+          "temperatureDuration": [
+            {
+              "SR_NO": 1,
+              "parameter": "Temperature @ 1 Hour",
+              "value": "88",
+              "remarks": ""
+            }
+          ],
+          "preHeatingMonitoring": [
+            {
+              "SR_NO": 1,
+              "parameter": "Date",
+              "value": "2026-08-14",
+              "remarks": ""
+            }
+          ]
+        },
+        "linerCoatingOperation": {
+          "linerType": "HEMCOAT_3L",
+          "batchNo": "Hem-Batch1",
+          "batchSize": 200,
+          "premixIngredients": [
+            {
+              "srNo": 1,
+              "materialName": "Toluene Diisocyanate",
+              "ingredient": "TDI",
+              "mfgLot": "LOT-TDI-2026-001",
+              "partsByWeight": 100,
+              "quantityTaken": 200,
+              "totalQuantity": 200
+            }
+          ],
+          "finalMixIngredients": [
+            {
+              "srNo": 1,
+              "materialName": "Toluene Diisocyanate",
+              "ingredient": "TDI",
+              "mfgLot": "LOT-TDI-2026-001",
+              "partsByWeight": 100,
+              "quantityTaken": 200,
+              "totalQuantity": 200
+            }
+          ],
+          "qualifyingSubscaleBatchNo": "QualBatch001",
+          "qualificationParameters": [
+            {
+              "srNo": 1,
+              "parameter": "SBS",
+              "specification": ">=5",
+              "result": "8"
+            }
+          ],
+          "linerApplicationLog": [
+            {
+              "SR_NO": 1,
+              "parameter": "Date",
+              "value": "2026-08-15",
+              "remarks": ""
+            }
+          ]
+        },
+        "dispatchToCasting": {
+          "dispatchVisualObservations": [
+            {
+              "SR_NO": 1,
+              "parameter": "Liner Coated Rubber Surface Visual Observation",
+              "observations": "Liner coating appears continuous and uniform."
+            }
+          ],
+          "dispatchToCastingDetails": [
+            {
+              "SR_NO": 1,
+              "parameter": "Puncturing at HE (Nos)",
+              "value": "4",
+              "remarks": ""
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+
+
+3. CASTING AND CURING
+---------------------
+
+Method: POST
+URL: /api/v1/user/casting-curing/form/create
+
+{
+  "batchId": "BATCH-2026-0001",
+  "subDepartmentId": 6,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "Motor-2026-001",
+      "motorReceivedAt": "2026-08-21T05:35:00",
+      "motorSubmissionType": "DRAFT",
+      "setup": {
+        "castingType": "Single",
+        "castingStation": "15B"
+      },
+      "curingSetup": {
+        "oven": "15B",
+        "ovenNo": "2",
+        "curingType": "CONFINED_CURING",
+        "configuration": null,
+        "motorsToCureCount": null,
+        "ovensUtilized": null
+      },
+      "castingSections": {
+        "finalAssemblyDetails": {
+          "motorCasing": [
+            {
+              "mandrelMeasurements": [
+                {
+                  "srNo": 1,
+                  "aMock": 250,
+                  "bMock": 245,
+                  "bFinal": 2.6,
+                  "cMock": 5,
+                  "cFinal": 247.4,
+                  "bellowsThicknessD": 2.76,
+                  "eMock": 2.24,
+                  "eFinal": 244.64
+                }
+              ],
+              "feedPipeDistance": [
+                {
+                  "srNo": 1,
+                  "reading1": 120,
+                  "reading2": 135
+                }
+              ],
+              "emptyMotorWeight": 70
+            }
+          ]
+        },
+        "castingProcess": {
+          "finalMixBowlDetails": [
+            {
+              "srNo": 1,
+              "bowlId": "FINAL_MIX 1 / Bowl No.3",
+              "bowlReceiptTime": "03:20:00",
+              "initialWeight": 80,
+              "finalWeight": 90,
+              "initialSlurryDepth": 10,
+              "dcOpenTime": "02:15:00",
+              "dcCloseTime": "02:20:00",
+              "slurryDepthAfterDc": 7,
+              "ballValveOpenTime": "02:20:00"
+            }
+          ],
+          "castingFromBowlDetails": [
+            {
+              "srNo": 1,
+              "bowlId": "FINAL_MIX 1 / Bowl No.3",
+              "timeInterval": 3,
+              "rh": 55,
+              "viscosity": 38,
+              "motorId": "Motor-2026-001",
+              "slurryDepth": 5,
+              "slurryCast": 70,
+              "flowRate": 80,
+              "valveOpening": 60,
+              "vacuumLevel": 500
+            }
+          ],
+          "initialVacuum": 45,
+          "vacuumPressureCasting": 55,
+          "vacuumPressureSoaking": 65
+        },
+        "slurryCastDetails": {
+          "slurryCastFromBowls": [
+            {
+              "rowKey": "1",
+              "fmMotorLabel": "FINAL_MIX 1 / Bowl No.3",
+              "slurryCast": 80
+            },
+            {
+              "rowKey": "TOTAL",
+              "fmMotorLabel": "Total Slurry Cast",
+              "slurryCast": 80
+            }
+          ]
+        },
+        "postCastOperations": {
+          "postCastTable": [
+            {
+              "srNo": 1,
+              "activity": "Soaking Time",
+              "details": "02:20"
+            }
+          ]
+        }
+      },
+      "curingSections": {
+        "curingCycles": {
+          "curingTable": [
+            {
+              "srNo": 1,
+              "temperature": 40,
+              "time": 90,
+              "startDate": "2026-07-30",
+              "startTime": "08:00:00",
+              "endDate": "2026-07-30",
+              "endTime": "09:30:00",
+              "hotWaterStatus": "ON",
+              "propellantPressure": 2.5
+            }
+          ]
+        },
+        "postCuringDetails": {
+          "otherObservations": "Curing completed without interruption.",
+          "visualObservation": "No visible deformation or leakage.",
+          "pressurePlateRemovalDateTime": "2026-08-18T05:30:00",
+          "shoreAHardness": 70,
+          "decoringDispatchDateTime": "2026-08-19T06:35:00"
+        },
+        "decoringDetails": {
+          "decoringDate": "2026-08-26",
+          "buildingNo": "14C",
+          "decoringLoad": 70,
+          "decoringRemarks": "De-coring entry completed under UAT.",
+          "decoringVisualObservation": "No abnormality observed."
+        }
+      }
+    }
+  ]
+}
+
+
+UPDATE ENVELOPE CHANGES
+-----------------------
+
+- RMC update: use PUT /api/v1/user/rocket-motor-casing/form/update, add
+  "motorCasingId", and keep formSubmissionType plus the required patch fields.
+- Case Preparation update: use PUT /api/v1/user/case-preparation/form/update
+  and add "formId" to the create payload.
+- Casting and Curing update: use PUT /api/v1/user/casting-curing/form/update
+  and add "formId" to the create payload.
+- Use "SUBMIT" instead of "DRAFT" when sending the form for approval.
+
+
+MANUFACTURING POST CURE OPERATIONS - STRICT DTO CONTRACT
+========================================================
+
+The manufacturing schema endpoint /api/v1/user/post-cure/schema is removed.
+Post Cure create and update now accept direct camelCase DTO fields. Do not send
+sections, sectionId, sectionData, uppercase table keys, motorSubmissionStatus,
+or motor-level operationType/inhibitorType. Replace the sample identifiers with
+values available in the target environment.
+
+Create URL: POST /api/v1/user/post-cure/form/create
+
+
+1. LOOSE FLAP FILLING
+---------------------
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 114,
+  "formSubmissionType": "DRAFT",
+  "operationType": "LOOSE_FLAP_FILLING",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceiptDate": "2026-08-22T10:30:00",
+      "motorSubmissionType": "DRAFT",
+      "looseFlapFillingDetails": {
+        "bellowRemovalDetails": [
+          {
+            "location": "HE_SIDE",
+            "fromDate": "2026-08-22",
+            "toDate": "2026-08-22",
+            "observations": "Bellow removed without damage."
+          }
+        ],
+        "epoxyPreparationIngredients": {
+          "batchNo": "LF-EPOXY-BATCH-001",
+          "preparationDate": "2026-08-22",
+          "parameters": [
+            {
+              "rowKey": "1",
+              "ingredient": "A-125 Hardener",
+              "mfgLot": "LOT-A125-001",
+              "partsByWeight": "60 +/-1",
+              "quantityTaken": 60.5
+            },
+            {
+              "rowKey": "TOTAL",
+              "ingredient": "Total Quantity",
+              "mfgLot": "N/A",
+              "partsByWeight": "N/A",
+              "quantityTaken": 117.1
+            }
+          ]
+        },
+        "qualificationDetails": {
+          "batchNo": "LF-QC-BATCH-001",
+          "preparationDate": "2026-08-22",
+          "parameters": [
+            {
+              "srNo": 1,
+              "parameter": "Tensile Strength",
+              "specification": ">=40 KSC",
+              "result": "42 KSC"
+            }
+          ],
+          "qcReport": "file-id-qc-report-001"
+        },
+        "fillingDetails": [
+          {
+            "location": "HE_SIDE",
+            "fromDate": "2026-08-22",
+            "toDate": "2026-08-22",
+            "quantityFilled": 55.5,
+            "observations": "Epoxy filled uniformly."
+          }
+        ]
+      }
+    }
+  ]
+}
+
+
+2. INHIBITION - IR1
+-------------------
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 114,
+  "formSubmissionType": "DRAFT",
+  "operationType": "INHIBITION",
+  "inhibitorType": "IR1",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceiptDate": "2026-08-22T10:30:00",
+      "motorSubmissionType": "DRAFT",
+      "inhibitionDetails": {
+        "premixDetails": {
+          "batchNo": "IR1-PREMIX-001",
+          "preparationDate": "2026-08-22",
+          "ingredients": [
+            {
+              "rowKey": "1",
+              "ingredient": "Castor Oil",
+              "mfgLot": "LOT-CO-001",
+              "partsByWeight": "60.0+/-1.0",
+              "quantityTaken": 600.0
+            }
+          ]
+        },
+        "finalMixDetails": {
+          "batchNo": "IR1-FINAL-001",
+          "preparationDate": "2026-08-22",
+          "ingredients": [
+            {
+              "rowKey": "1",
+              "ingredient": "IR-1 Premix",
+              "mfgLot": "LOT-IR1P-001",
+              "partsByWeight": "100",
+              "quantityTaken": 1000.0
+            }
+          ]
+        },
+        "qualificationDetails": {
+          "batchNo": "IR1-QC-001",
+          "preparationDate": "2026-08-22",
+          "parameters": [
+            {
+              "srNo": 1,
+              "parameter": "Tensile Strength",
+              "specification": ">=8 KSC",
+              "result": "9.2 KSC"
+            }
+          ],
+          "qcReport": "file-id-qc-report-002"
+        },
+        "inhibitorBatchDetails": {
+          "batchNo": "INH-BATCH-001",
+          "batchSize": 1147.0
+        },
+        "applicationDetails": [
+          {
+            "location": "HE_SIDE",
+            "fromDate": "2026-08-22",
+            "toDate": "2026-08-22",
+            "quantityApplied": 520.5,
+            "observations": "Inhibitor applied evenly."
+          }
+        ],
+        "dispatchDetails": {
+          "dispatchDate": "2026-08-23",
+          "dispatchStation": "CAST-STATION-01"
+        }
+      }
+    }
+  ]
+}
+
+
+3. INHIBITION - HEMCOAT_3K
+--------------------------
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 114,
+  "formSubmissionType": "DRAFT",
+  "operationType": "INHIBITION",
+  "inhibitorType": "HEMCOAT_3K",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceiptDate": "2026-08-22T10:30:00",
+      "motorSubmissionType": "DRAFT",
+      "inhibitionDetails": {
+        "premixDetails": {
+          "batchNo": "HC3K-PREMIX-001",
+          "preparationDate": "2026-08-22",
+          "ingredients": [
+            {
+              "rowKey": "1",
+              "ingredient": "HTPB",
+              "mfgLot": "LOT-HTPB-001",
+              "partsByWeight": "80.00",
+              "quantityTaken": 800.0
+            }
+          ]
+        },
+        "finalMixDetails": {
+          "batchNo": "HC3K-FINAL-001",
+          "preparationDate": "2026-08-22",
+          "ingredients": [
+            {
+              "rowKey": "1",
+              "ingredient": "Hemcoat-3K Premix",
+              "mfgLot": "LOT-HC3KP-001",
+              "partsByWeight": "98",
+              "quantityTaken": 980.0
+            }
+          ]
+        },
+        "qualificationDetails": {
+          "batchNo": "HC3K-QC-001",
+          "preparationDate": "2026-08-22",
+          "parameters": [
+            {
+              "srNo": 1,
+              "parameter": "Tensile Strength",
+              "specification": ">=25 KSC",
+              "result": "27 KSC"
+            }
+          ],
+          "qcReport": "file-id-qc-report-003"
+        },
+        "inhibitorBatchDetails": {
+          "batchNo": "INH-BATCH-002",
+          "batchSize": 1005.0
+        },
+        "applicationDetails": [
+          {
+            "location": "NE_SIDE",
+            "fromDate": "2026-08-22",
+            "toDate": "2026-08-22",
+            "quantityApplied": 525.0,
+            "observations": "Hemcoat-3K applied uniformly."
+          }
+        ],
+        "dispatchDetails": {
+          "dispatchDate": "2026-08-23",
+          "dispatchStation": "CAST-STATION-02"
+        }
+      }
+    }
+  ]
+}
+
+
+4. INHIBITION - NOT_APPLICABLE
+------------------------------
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 114,
+  "formSubmissionType": "DRAFT",
+  "operationType": "INHIBITION",
+  "inhibitorType": "NOT_APPLICABLE",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceiptDate": "2026-08-22T10:30:00",
+      "motorSubmissionType": "DRAFT",
+      "inhibitionDetails": {
+        "notApplicableRemarks": "Inhibition is not applicable as per process specification."
+      }
+    }
+  ]
+}
+
+
+UPDATE REQUEST
+--------------
+
+Method: PUT
+URL: /api/v1/user/post-cure/form/update
+
+Use any one of the four create bodies above and add the form identifier:
+
+{
+  "formId": "PCF-2026-001",
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 114,
+  "formSubmissionType": "DRAFT",
+  "operationType": "INHIBITION",
+  "inhibitorType": "NOT_APPLICABLE",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "motorReceiptDate": "2026-08-22T10:30:00",
+      "motorSubmissionType": "DRAFT",
+      "inhibitionDetails": {
+        "notApplicableRemarks": "Inhibition is not applicable as per process specification."
+      }
+    }
+  ]
+}
+
+Use SUBMIT at form and motor level when sending the applicable motor details
+for approval.
+
+
+DETAILS REQUEST
+---------------
+
+Method: POST
+URL: /api/v1/user/post-cure/form/details
+
+{
+  "formId": "PCF-2026-001"
+}
+
+The details response returns direct typed motors. Backend-managed fields such
+as operationType, inhibitorType, and motorSubmissionStatus are included in each
+saved motor response but must not be sent inside request motors.
+
+
+STATIC TESTING FACILITY - STRICT DTO CONTRACT
+=============================================
+
+The schema endpoint /api/v1/user/stf/schema is removed. STF APIs now accept
+direct camelCase DTO fields. Do not send formSections, sectionId, sectionData,
+uppercase schema keys, or motorSubmissionStatus. Existing schema-shaped
+documents in static_testings and bem_motors must be deleted and recreated.
+
+
+1. ACEM MAIN MOTOR - CREATE STF FORM
+-----------------------------------
+
+Method: POST
+URL: /api/v1/user/stf/form/create
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "subType": "MAIN_MOTOR",
+      "stfTestNo": "STF-MM-001",
+      "motorSubmissionType": "DRAFT",
+      "staticTestingDetails": {
+        "igniterDetails": {
+          "containerType": "Aluminum Canister",
+          "composition": "BKNO3-EPDM",
+          "weightOfComposition": 18.5,
+          "squibResistance": 2.4,
+          "remarks": "Igniter inspected and accepted"
+        },
+        "nozzleDetails": {
+          "nozzleClosureMaterial": "EPDM",
+          "motherGraphite": "Grade-A Graphite",
+          "nozzleInsert": "Tungsten Insert",
+          "dtBefore": 45.2,
+          "deBefore": 120.0,
+          "dtAfter": 46.1,
+          "deAfter": 118.5,
+          "remarks": "Nozzle dimensions within tolerance"
+        },
+        "testingDetails": {
+          "throatDiameter": 32.5,
+          "propellantWeight": 850.0,
+          "webThickness": 12.0,
+          "nValue": 0.35,
+          "conditioningTemperature": 25.0,
+          "ambientTemperature": 28.0,
+          "rhPercent": 55.0
+        },
+        "sensorConfigurations": [
+          {
+            "channel": "PR1",
+            "sensor": "Pressure Transducer PT-101",
+            "sensitivity": 0.05,
+            "maxExpected": 350.0,
+            "sensorRange": 500.0,
+            "filterHz": 1000.0,
+            "iaNo": "IA-01",
+            "iaGain": 10.0,
+            "extVoltage": 5.0,
+            "offsetValue": 0.02,
+            "preloading": 1.5
+          }
+        ],
+        "resultDetails": {
+          "averagePressure": 285.5,
+          "peakPressure": 310.2,
+          "tb": 45.8,
+          "burnRate": 12.3,
+          "cStar": 1580.0,
+          "isp": 245.0
+        },
+        "ptCurveFile": "FILE_dummy-pt-curve-main-001"
+      }
+    }
+  ]
+}
+
+
+2. ACEM BEM MOTOR - CREATE STF FORM
+----------------------------------
+
+Method: POST
+URL: /api/v1/user/stf/form/create
+
+{
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "BEM-001",
+      "subType": "BEM",
+      "stfTestNo": "STF-BEM-001",
+      "motorSubmissionType": "DRAFT",
+      "staticTestingDetails": {
+        "conditioningDetails": {
+          "fromDateTime": "2026-08-22T08:00:00",
+          "toDateTime": "2026-08-22T10:30:00",
+          "temperature": 25.0,
+          "rh": 55.0,
+          "observation": "Conditioning completed as per SOP"
+        },
+        "grainDimensions": [
+          {
+            "side": "Side I",
+            "od": 120.5,
+            "a": 45.0,
+            "b": 38.5,
+            "c": 32.0,
+            "length": 250.0,
+            "weight": 12.5
+          },
+          {
+            "side": "Side II",
+            "od": 120.3,
+            "a": 44.8,
+            "b": 38.3,
+            "c": 31.8,
+            "length": 250.0,
+            "weight": 12.5
+          }
+        ],
+        "bemHardwareDetails": {
+          "headEndNo": "HE-001",
+          "nozzleEndNo": "NE-001",
+          "retainerRingNo": "RR-001",
+          "casingNo": "CS-001",
+          "casingOd": 150.0,
+          "casingId": 140.0,
+          "casingLength": 300.0,
+          "firingNo": "FR-001"
+        },
+        "igniterDetails": {
+          "containerType": "Plastic Container",
+          "composition": "Zr-KClO4",
+          "weightOfComposition": 8.5,
+          "squibResistance": 1.8,
+          "remarks": "Igniter OK"
+        },
+        "nozzleDetails": {
+          "nozzleClosureMaterial": "Silicone",
+          "throatMaterial": 12.5,
+          "motherGraphite": "Grade-B Graphite",
+          "nozzleInsert": "Carbon Insert",
+          "beforeD1": 25.0,
+          "beforeD2": 30.0,
+          "afterD1": 25.5,
+          "afterD2": 29.5,
+          "remarks": "Nozzle OK after firing"
+        },
+        "testingDetails": {
+          "throatDiameter": 15.0,
+          "propellantWeight": 120.0,
+          "webThickness": 8.0,
+          "nValue": 0.32,
+          "conditioningTemperature": 25.0,
+          "ambientTemperature": 28.0,
+          "rhPercent": 55.0
+        },
+        "sensorConfigurations": [
+          {
+            "channel": "PR1",
+            "sensor": "Pressure Transducer PT-201",
+            "sensitivity": 0.05,
+            "maxExpected": 200.0,
+            "sensorRange": 300.0,
+            "filterHz": 1000.0,
+            "iaNo": "IA-11",
+            "iaGain": 10.0,
+            "extVoltage": 5.0,
+            "offsetValue": 0.02,
+            "preloading": 1.5
+          }
+        ],
+        "resultDetails": {
+          "averagePressure": 185.5,
+          "peakPressure": 210.2,
+          "tb": 25.8,
+          "burnRate": 10.3,
+          "cStar": 1480.0,
+          "isp": 235.0
+        },
+        "ptCurveFile": "FILE_dummy-pt-curve-bem-001"
+      }
+    }
+  ]
+}
+
+
+3. OTHER BEM MOTOR - CREATE
+---------------------------
+
+Method: POST
+URL: /api/v1/user/stf/bem-motor/create
+
+{
+  "motorId": "OTHER-BEM-001",
+  "subType": "BEM",
+  "stfTestNo": "STF-OB-001",
+  "formSubmissionType": "DRAFT",
+  "staticTestingDetails": {
+    "conditioningDetails": {
+      "fromDateTime": "2026-08-22T08:00:00",
+      "toDateTime": "2026-08-22T10:30:00",
+      "temperature": 25.0,
+      "rh": 55.0,
+      "observation": "Conditioning completed as per SOP"
+    },
+    "grainDimensions": [
+      {
+        "side": "Side I",
+        "od": 120.5,
+        "a": 45.0,
+        "b": 38.5,
+        "c": 32.0,
+        "length": 250.0,
+        "weight": 12.5
+      }
+    ],
+    "bemHardwareDetails": {
+      "headEndNo": "HE-001",
+      "nozzleEndNo": "NE-001",
+      "retainerRingNo": "RR-001",
+      "casingNo": "CS-001",
+      "casingOd": 150.0,
+      "casingId": 140.0,
+      "casingLength": 300.0,
+      "firingNo": "FR-001"
+    },
+    "igniterDetails": {
+      "containerType": "Plastic Container",
+      "composition": "Zr-KClO4",
+      "weightOfComposition": 8.5,
+      "squibResistance": 1.8,
+      "remarks": "Igniter OK"
+    },
+    "nozzleDetails": {
+      "nozzleClosureMaterial": "Silicone",
+      "throatMaterial": 12.5,
+      "motherGraphite": "Grade-B Graphite",
+      "nozzleInsert": "Carbon Insert",
+      "beforeD1": 25.0,
+      "beforeD2": 30.0,
+      "afterD1": 25.5,
+      "afterD2": 29.5,
+      "remarks": "Nozzle OK after firing"
+    },
+    "testingDetails": {
+      "throatDiameter": 15.0,
+      "propellantWeight": 120.0,
+      "webThickness": 8.0,
+      "nValue": 0.32,
+      "conditioningTemperature": 25.0,
+      "ambientTemperature": 28.0,
+      "rhPercent": 55.0
+    },
+    "sensorConfigurations": [
+      {
+        "channel": "PR1",
+        "sensor": "Pressure Transducer PT-201",
+        "sensitivity": 0.05,
+        "maxExpected": 200.0,
+        "sensorRange": 300.0,
+        "filterHz": 1000.0,
+        "iaNo": "IA-11",
+        "iaGain": 10.0,
+        "extVoltage": 5.0,
+        "offsetValue": 0.02,
+        "preloading": 1.5
+      }
+    ],
+    "resultDetails": {
+      "averagePressure": 185.5,
+      "peakPressure": 210.2,
+      "tb": 25.8,
+      "burnRate": 10.3,
+      "cStar": 1480.0,
+      "isp": 235.0
+    },
+    "ptCurveFile": "FILE_dummy-pt-curve-other-bem-001"
+  }
+}
+
+
+ACEM STF UPDATE AND DETAILS
+---------------------------
+
+Update URL: PUT /api/v1/user/stf/form/update
+
+Use either ACEM create body above and add:
+
+{
+  "formId": "STF-001",
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "MOTOR-001",
+      "subType": "MAIN_MOTOR",
+      "stfTestNo": "STF-MM-001",
+      "motorSubmissionType": "DRAFT",
+      "staticTestingDetails": {
+        "ptCurveFile": "FILE_dummy-pt-curve-main-002"
+      }
+    }
+  ]
+}
+
+For final form submission after every eligible motor is approved, send:
+
+{
+  "formId": "STF-001",
+  "batchId": "BATCH-DUMMY-001",
+  "subDepartmentId": 115,
+  "formSubmissionType": "SUBMIT"
+}
+
+Details URL: POST /api/v1/user/stf/form/details
+
+{
+  "formId": "STF-001"
+}
+
+
+OTHER BEM UPDATE AND DETAILS
+----------------------------
+
+Update URL: PUT /api/v1/user/stf/bem-motor/update
+
+stfTestNo, when supplied, must match the existing immutable value.
+
+{
+  "motorId": "OTHER-BEM-001",
+  "stfTestNo": "STF-OB-001",
+  "formSubmissionType": "DRAFT",
+  "staticTestingDetails": {
+    "ptCurveFile": "FILE_dummy-pt-curve-other-bem-002"
+  }
+}
+
+Details URL: POST /api/v1/user/stf/bem-motor/details
+
+{
+  "motorId": "OTHER-BEM-001"
+}
+
+Use SUBMIT as the applicable motor/form submission type when sending records
+for approval. motorSubmissionStatus and status are returned by the backend and
+must not be included in create or update requests.
+
+
+DISPATCH - STRICT DTO CONTRACT
+==============================
+
+The old /api/v1/user/dispatch/schema endpoint is removed. Send the typed
+camelCase payloads below directly. Legacy sectionData fields and dynamic
+FM_1 / FM_2 keys are not accepted.
+
+
+1. CREATE REQUEST
+-----------------
+
+Method: POST
+URL: /api/v1/user/dispatch/form/create
+
+{
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 116,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "MTR-001",
+      "motorSubmissionType": "DRAFT",
+      "dispatchDetails": {
+        "stage": "STAGE_1",
+        "castingDate": "2026-08-15",
+        "dispatchDate": "2026-08-22",
+        "dispatchLocation": "DRDL Hyderabad",
+        "ndtClearance": {
+          "accorded": "YES",
+          "momNo": "NDT-MOM-2026-001"
+        },
+        "finalAcceptanceCommitteeClearance": {
+          "accorded": "YES",
+          "momNo": "FAC-MOM-2026-001"
+        },
+        "propellantProperties": [
+          {
+            "srNo": 1,
+            "property": "a) Tensile Strength",
+            "specification": "Min 8.5 MPa",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "12.5" },
+              { "finalMixNo": 2, "value": "12.8" }
+            ]
+          },
+          {
+            "srNo": 2,
+            "property": "b) Modulus",
+            "specification": "As per drawing",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "850" },
+              { "finalMixNo": 2, "value": "860" }
+            ]
+          },
+          {
+            "srNo": 3,
+            "property": "c) Elongation",
+            "specification": "Min 25%",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "28" },
+              { "finalMixNo": 2, "value": "27" }
+            ]
+          },
+          {
+            "srNo": 4,
+            "property": "d) Density",
+            "specification": "1.75 g/cc",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "1.76" },
+              { "finalMixNo": 2, "value": "1.75" }
+            ]
+          },
+          {
+            "srNo": 5,
+            "property": "a) Peel Strength",
+            "specification": "Min 2.0 N/mm",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "2.4" },
+              { "finalMixNo": 2, "value": "2.3" }
+            ]
+          },
+          {
+            "srNo": 6,
+            "property": "b) TBS",
+            "specification": "As per spec",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "45" },
+              { "finalMixNo": 2, "value": "44" }
+            ]
+          },
+          {
+            "srNo": 7,
+            "property": "c) SBS",
+            "specification": "As per spec",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "38" },
+              { "finalMixNo": 2, "value": "39" }
+            ]
+          },
+          {
+            "srNo": 8,
+            "property": "a) Burn Rate",
+            "specification": "Nominal curve",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "8.2" },
+              { "finalMixNo": 2, "value": "8.1" }
+            ]
+          }
+        ],
+        "waiverDetails": {
+          "available": true,
+          "details": "No waiver applicable for this dispatch",
+          "uploadedDocuments": []
+        },
+        "rocketMotorInspection": [
+          { "srNo": 1, "parameter": "i. Condition of Lugs", "observation": "Satisfactory" },
+          { "srNo": 2, "parameter": "ii. HE Polar Boss", "observation": "No defects observed" },
+          { "srNo": 3, "parameter": "iii. NE Polar Boss", "observation": "No defects observed" },
+          { "srNo": 4, "parameter": "i. Port", "observation": "Clean" },
+          { "srNo": 5, "parameter": "ii. IR Bead", "observation": "Uniform" }
+        ],
+        "vehicleDetails": [
+          { "srNo": 1, "checkPoint": "Vehicle No.", "observation": "TS-09-AB-1234" },
+          { "srNo": 2, "checkPoint": "Condition of Tyres", "observation": "Good" },
+          { "srNo": 3, "checkPoint": "Visual observation on article", "observation": "OK" },
+          { "srNo": 4, "checkPoint": "Firefighting Equipment availability", "observation": "Available" },
+          { "srNo": 5, "checkPoint": "Isolator conditions", "observation": "OK" },
+          { "srNo": 6, "checkPoint": "Shock log Ids", "observation": "SL-001" },
+          { "srNo": 7, "checkPoint": "Name of Convoy Commander", "observation": "Capt. Sharma" }
+        ],
+        "rocketMotorPackingDetails": [
+          { "srNo": 1, "nomenclature": "End Closures at HE", "observation": "Sealed and verified" },
+          { "srNo": 2, "nomenclature": "End Closures at NE", "observation": "Sealed and verified" },
+          { "nomenclature": "Nitrogen gas purging", "observation": "YES" },
+          { "nomenclature": "Nitrogen purging pressure", "observation": "2.5 bar" },
+          { "nomenclature": "Labelling of motor", "observation": "YES" }
+        ],
+        "uploadDispatchPhotos": [
+          "dispatch-photo-1.jpg",
+          "dispatch-photo-2.jpg"
+        ],
+        "safetyClearance": {
+          "accorded": "YES",
+          "clearanceCertificate": "safety-clearance-cert.pdf"
+        },
+        "dispatchTeam": {
+          "qaRepresentative": "QA Rep Name",
+          "safetyRepresentative": "Safety Rep Name",
+          "projectRepresentative": "Project Rep Name"
+        }
+      }
+    }
+  ]
+}
+
+Example create response:
+
+{
+  "success": true,
+  "code": 201,
+  "message": "Dispatch form saved as draft successfully",
+  "data": {
+    "formId": "DISPATCH-0001",
+    "batchId": "BATCH-2026-001",
+    "formStatus": "IN_PROGRESS",
+    "motorCount": 1,
+    "motors": [
+      { "motorId": "MTR-001" }
+    ],
+    "createdBy": "USER-ID",
+    "createdOn": "2026-08-22T14:00:00",
+    "pendingMotorCount": 0,
+    "approvedMotorCount": 0,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 1,
+    "totalMotorCount": 1,
+    "motorStatuses": [
+      {
+        "motorId": "MTR-001",
+        "motorSubmissionType": "DRAFT",
+        "motorSubmissionStatus": "IN_PROGRESS"
+      }
+    ]
+  }
+}
+
+
+2. UPDATE REQUEST
+-----------------
+
+Method: PUT
+URL: /api/v1/user/dispatch/form/update
+
+The motors array uses the same DTO structure as create. This example updates
+the dates and one propellant property row.
+
+{
+  "formId": "DISPATCH-0001",
+  "batchId": "BATCH-2026-001",
+  "subDepartmentId": 116,
+  "formSubmissionType": "DRAFT",
+  "motors": [
+    {
+      "motorId": "MTR-001",
+      "motorSubmissionType": "DRAFT",
+      "dispatchDetails": {
+        "stage": "STAGE_1",
+        "castingDate": "2026-08-15",
+        "dispatchDate": "2026-08-23",
+        "dispatchLocation": "DRDL Hyderabad",
+        "propellantProperties": [
+          {
+            "srNo": 1,
+            "property": "a) Tensile Strength",
+            "specification": "Min 8.5 MPa",
+            "finalMixResults": [
+              { "finalMixNo": 1, "value": "12.6" },
+              { "finalMixNo": 2, "value": "12.9" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+
+Example update response:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Dispatch form updated successfully",
+  "data": {
+    "formId": "DISPATCH-0001",
+    "batchId": "BATCH-2026-001",
+    "formStatus": "IN_PROGRESS",
+    "motorCount": 1,
+    "motors": [
+      { "motorId": "MTR-001" }
+    ],
+    "updatedBy": "USER-ID",
+    "updatedOn": "2026-08-22T14:10:00",
+    "pendingMotorCount": 0,
+    "approvedMotorCount": 0,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 1,
+    "totalMotorCount": 1
+  }
+}
+
+
+3. DETAILS REQUEST AND RESPONSE
+-------------------------------
+
+Method: POST
+URL: /api/v1/user/dispatch/form/details
+
+{
+  "formId": "DISPATCH-0001"
+}
+
+The details response returns the same typed dispatchDetails structure and adds
+backend-managed motorSubmissionStatus:
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Dispatch record details fetched successfully",
+  "data": {
+    "formId": "DISPATCH-0001",
+    "batchId": "BATCH-2026-001",
+    "batchType": "ACEM",
+    "subDepartmentId": 116,
+    "formSubmissionType": "DRAFT",
+    "formStatus": "IN_PROGRESS",
+    "motors": [
+      {
+        "motorId": "MTR-001",
+        "motorSubmissionType": "DRAFT",
+        "motorSubmissionStatus": "IN_PROGRESS",
+        "dispatchDetails": {
+          "stage": "STAGE_1",
+          "castingDate": "2026-08-15",
+          "dispatchDate": "2026-08-23",
+          "dispatchLocation": "DRDL Hyderabad",
+          "propellantProperties": [
+            {
+              "srNo": 1,
+              "property": "a) Tensile Strength",
+              "specification": "Min 8.5 MPa",
+              "finalMixResults": [
+                { "finalMixNo": 1, "value": "12.6" },
+                { "finalMixNo": 2, "value": "12.9" }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "allMotorsApproved": false,
+    "pendingMotorCount": 0,
+    "approvedMotorCount": 0,
+    "rejectedMotorCount": 0,
+    "inProgressMotorCount": 1,
+    "totalMotorCount": 1
+  }
+}
+
+Use motorSubmissionType SUBMIT when sending a motor for approval.
+motorSubmissionStatus is backend-managed and must not be included in create
+or update requests.
+
+
+RMP PREMIX APPROVAL AND BLOCKCHAIN ASSET (BRUNO)
+================================================
+
+Use this ACEM backend request to exercise the RMP approval flow. After ACEM
+saves the approval, the microservice immediately attempts asset delivery and
+retries failures on its schedule. A gateway outage does not undo the approval.
+
+Method: POST
+URL: {{acemBaseUrl}}/api/v1/approver/form/premix/change-status
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {{approverToken}}
+
+Request body:
+
+{
+  "formId": "RMPF-2026-0017",
+  "premixNo": 1,
+  "subDepartmentId": 3,
+  "actionType": "APPROVED",
+  "remarks": "Premix verified and approved"
+}
+
+Success response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Premix approved successfully",
+  "data": {
+    "formId": "RMPF-2026-0017",
+    "batchId": "BATCH-2026-0042",
+    "premixNo": 1,
+    "actionType": "APPROVED",
+    "status": "APPROVED",
+    "premixSubmissionStatus": "APPROVED",
+    "batchStatus": "WAITING_FOR_PARTIAL_APPROVAL",
+    "allPremixesApproved": false,
+    "pendingPremixCount": 1,
+    "approvedPremixCount": 1,
+    "rejectedPremixCount": 0,
+    "totalPremixCount": 2,
+    "remarks": "Premix verified and approved",
+    "actionBy": "admin",
+    "actionAt": "2026-09-30T12:00:00"
+  },
+  "timestamp": "2026-09-30T12:00:00"
+}
+
+Use a `formId` and `premixNo` currently waiting for approval. Set
+`subDepartmentId` to 3 for raw material preparation. The corresponding asset
+ID is `uid:acem:asset/{batchId}:{formId}/{premixNo}`. The gateway request and
+response payload example is in `RAW_MATERIAL_PREPARATION_ASSET_API.txt`.

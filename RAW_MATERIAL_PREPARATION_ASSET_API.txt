@@ -1,0 +1,346 @@
+RAW MATERIAL PREPARATION PREMIX ASSET API (BRUNO)
+=================================================
+
+1. TRIGGER THROUGH THE ACEM BACKEND
+-----------------------------------
+
+Use this request to exercise the approval flow. The backend queues the
+corresponding asset after saving the approval.
+
+Method: POST
+URL: {{acemBaseUrl}}/api/v1/approver/form/premix/change-status
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {{approverToken}}
+
+Body:
+
+{
+  "formId": "RMPF-2026-0017",
+  "premixNo": 1,
+  "subDepartmentId": 3,
+  "actionType": "APPROVED",
+  "remarks": "Premix verified and approved"
+}
+
+Successful response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Premix approved successfully",
+  "data": {
+    "formId": "RMPF-2026-0017",
+    "batchId": "BATCH-2026-0042",
+    "premixNo": 1,
+    "actionType": "APPROVED",
+    "status": "APPROVED",
+    "premixSubmissionStatus": "APPROVED",
+    "batchStatus": "WAITING_FOR_PARTIAL_APPROVAL",
+    "allPremixesApproved": false,
+    "pendingPremixCount": 1,
+    "approvedPremixCount": 1,
+    "rejectedPremixCount": 0,
+    "totalPremixCount": 2,
+    "remarks": "Premix verified and approved",
+    "actionBy": "admin",
+    "actionAt": "2026-09-30T12:00:00"
+  },
+  "timestamp": "2026-09-30T12:00:00"
+}
+
+
+4. VIEW A TRANSACTION BY ID
+---------------------------
+
+Method: POST
+URL: {{acemBaseUrl}}/api/v1/admin/blockchain/transaction/details
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+
+Request body:
+
+{
+  "transactionId": "<gateway-generated-transaction-id>"
+}
+
+Success response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Blockchain transaction details fetched successfully",
+  "data": {
+    "transactionId": "<gateway-generated-transaction-id>",
+    "assetId": "uid:acem:asset/ACEM-2609-0007:RMPF-2026-051/1",
+    "batchId": "ACEM/2609/0007",
+    "formId": "RMPF-2026-051",
+    "event": {
+      "transactionId": "<gateway-generated-transaction-id>",
+      "batchId": "ACEM/2609/0007",
+      "eventType": "RMP_PREMIX_ASSET_CREATED",
+      "eventStatusMessage": "Asset uid:acem:asset/ACEM-2609-0007:RMPF-2026-051/1 registered (ACTIVE)",
+      "department": "Manufacturing",
+      "subDepartment": "Raw Material Preparation",
+      "performedBy": "admin",
+      "timestamp": "2026-09-30T12:00:00"
+    },
+    "gatewayReceipt": {
+      "id": "uid:acem:asset/ACEM-2609-0007:RMPF-2026-051/1",
+      "version": 1,
+      "status": "ACTIVE",
+      "subjectId": "ACEM/2609/0007",
+      "subjectSecondaryId": "RMPF-2026-051",
+      "payloadHash": "<gateway-generated-hash>",
+      "txId": "<gateway-generated-transaction-id>",
+      "createdAt": "<gateway-timestamp>",
+      "updatedAt": "<gateway-timestamp>"
+    }
+  },
+  "timestamp": "2026-09-30T12:00:00"
+}
+
+
+Set `formId` and `premixNo` to an entry currently waiting for approval. After
+ACEM saves the approval, the microservice immediately attempts the gateway
+POST. Failed deliveries remain queued for scheduled retries. Its receipt is
+retained with the RMP form and is not added to this response.
+
+2. ASSET GATEWAY REQUEST / RESPONSE
+----------------------------------
+
+Configure these Bruno environment variables:
+
+  assetGatewayUrl  Base URL of the asset gateway, for example http://172.16.69.88:8080
+  peerSrt          Gateway peer_srt credential (store in a local/private environment)
+  assetUserId      Gateway userid, normally admin
+
+Request
+-------
+
+Method: POST
+URL: {{assetGatewayUrl}}/gateway/api/v1/assets/
+Headers:
+  Content-Type: application/json
+  peer_srt: {{peerSrt}}
+  userid: {{assetUserId}}
+
+Body (example for approved premix 1):
+
+{
+  "id": "uid:acem:asset/BATCH-2026-0042:RMPF-2026-0017/1",
+  "schemaId": "uid:acem:schema/raw-material-preparation",
+  "subjectId": "BATCH-2026-0042",
+  "subjectSecondaryId": "RMPF-2026-0017",
+  "payload": {
+    "subDepartmentId": 3,
+    "formSubmissionType": "DRAFT",
+    "status": "WAITING_FOR_PARTIAL_APPROVAL",
+    "preparationDetails": {
+      "premixes": [
+        {
+          "premixNo": 1,
+          "premixDate": "2026-03-15",
+          "materialType": "BOTH",
+          "premixSubmissionType": "SUBMIT",
+          "premixSubmissionStatus": "APPROVED",
+          "solidProcess": [
+            {
+              "materialId": 101,
+              "materialCode": "AL",
+              "materialName": "Aluminium Powder",
+              "gradeId": 11,
+              "gradeCode": "G1",
+              "processType": "DEFAULT_SOLID",
+              "lotDetails": [
+                { "lotId": "LOT-AL-2026-001", "quantity": 12.5 },
+                { "lotId": "LOT-AL-2026-002", "quantity": 7.5 }
+              ],
+              "drying": {
+                "ovenType": "Tray Oven",
+                "ovenNumber": "OV-12",
+                "ovenSetTemperature": "80",
+                "startDatetime": "15-03-2026 08:00",
+                "endDatetime": "15-03-2026 12:00",
+                "moisture": "0.02",
+                "observation": "Drying completed as per SOP"
+              },
+              "sieving": {
+                "sievingDispatchDatetime": "15-03-2026 13:30",
+                "sievedQuantity": "19.8",
+                "sieveMeshSize": "100",
+                "observation": "No foreign particles observed"
+              }
+            }
+          ],
+          "liquidProcess": [
+            {
+              "materialId": 205,
+              "materialCode": "DOA",
+              "materialName": "Dioctyl Adipate",
+              "processType": "DOA",
+              "lotDetails": [
+                { "lotId": "LOT-DOA-2026-010", "quantity": 5.0 }
+              ],
+              "doa": {
+                "dispatchDatetime": "15-03-2026 14:00",
+                "observation": "Dispatched to premix area",
+                "totalQtySentForPremix": "5.0"
+              }
+            }
+          ]
+        }
+      ],
+      "weightmentSheet": {
+        "mixerBuildingNumber": "BLDG-MIX-A",
+        "weightmentDetails": [
+          {
+            "materialCode": "AL",
+            "materialName": "Aluminium Powder",
+            "premixNo": 1,
+            "percentage": 80.0,
+            "weightTransferred": 20.0,
+            "containerType": "Bin",
+            "containerNumber": "BIN-AL-01",
+            "weighScaleNumber": "WS-101",
+            "weighingDateTime": "2026-03-15T15:30:00"
+          },
+          {
+            "materialCode": "DOA",
+            "materialName": "Dioctyl Adipate",
+            "premixNo": 1,
+            "percentage": 20.0,
+            "weightTransferred": 5.0,
+            "containerType": "Can",
+            "containerNumber": "CAN-DOA-01",
+            "weighScaleNumber": "WS-102",
+            "weighingDateTime": "2026-03-15T15:45:00"
+          }
+        ],
+        "validation": {
+          "compareWithIdentificationSheet": true,
+          "deviationFound": false
+        }
+      }
+    }
+  },
+  "tags": ["raw-material", "preparation", "batch", "RMP"]
+}
+
+Successful response
+-------------------
+
+Status: 201 Created
+
+The gateway response includes the submitted asset fields plus its receipt
+metadata. Example (payload abbreviated to show the response envelope):
+
+{
+  "id": "uid:acem:asset/BATCH-2026-0042:RMPF-2026-0017/1",
+  "version": 1,
+  "status": "ACTIVE",
+  "schemaId": "uid:acem:schema/raw-material-preparation",
+  "issuer": "acem",
+  "subjectId": "BATCH-2026-0042",
+  "subjectSecondaryId": "RMPF-2026-0017",
+  "payload": {
+    "subDepartmentId": 3,
+    "formSubmissionType": "DRAFT",
+    "status": "WAITING_FOR_PARTIAL_APPROVAL",
+    "preparationDetails": {
+      "premixes": [
+        {
+          "premixNo": 1,
+          "premixDate": "2026-03-15",
+          "materialType": "BOTH",
+          "premixSubmissionType": "SUBMIT",
+          "premixSubmissionStatus": "APPROVED",
+          "solidProcess": [],
+          "liquidProcess": []
+        }
+      ],
+      "weightmentSheet": {
+        "mixerBuildingNumber": "BLDG-MIX-A",
+        "weightmentDetails": [],
+        "validation": { "compareWithIdentificationSheet": true, "deviationFound": false }
+      }
+    }
+  },
+  "payloadHash": "<gateway-generated-hash>",
+  "tags": ["raw-material", "preparation", "batch", "RMP"],
+  "suspendedAt": null,
+  "revokedAt": null,
+  "expiresAt": null,
+  "revokeReason": null,
+  "lastAmendmentReason": null,
+  "txId": "<gateway-generated-transaction-id>",
+  "createdAt": "<gateway-timestamp>",
+  "updatedAt": "<gateway-timestamp>"
+}
+
+Notes
+-----
+
+- The backend generates one asset per approved premix. Replace the final ID
+  segment with that premix number for other premixes.
+- Slashes in a batch ID are converted to hyphens for the asset ID CRN segment.
+  For example, batch `ACEM/2609/0007` becomes `ACEM-2609-0007` in the asset ID;
+  `subjectId` remains `ACEM/2609/0007`.
+  Its premix 1 asset ID is `uid:acem:asset/ACEM-2609-0007:RMPF-2026-051/1`.
+- The payload contains only the approved premix and weightment rows for it.
+- Form status and submission fields reflect the saved form state at approval.
+- The retry worker uses the same POST and asset ID for delivery retries.
+
+
+3. LIST REGISTERED BLOCKCHAIN TRANSACTIONS
+------------------------------------------
+
+Method: POST
+URL: {{acemBaseUrl}}/api/v1/admin/blockchain/list
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+
+Request body (first page of registered events):
+
+{
+  "page": 1,
+  "pageSize": 10
+}
+
+Optional filters: `search`, `eventType`, `department`, `subDepartment`,
+`startDate`, and `endDate`. Results are sorted newest first. Successful
+gateway asset registrations appear after the delivery worker records their
+receipt in `blockchain_events`.
+
+Success response: 200 OK
+
+{
+  "success": true,
+  "code": 200,
+  "message": "Blockchain transactions fetched successfully",
+  "data": {
+    "events": [
+      {
+        "transactionId": "<gateway-generated-transaction-id>",
+        "batchId": "BATCH-2026-0042",
+        "eventType": "RMP_PREMIX_ASSET_CREATED",
+        "eventStatusMessage": "Asset uid:acem:asset/BATCH-2026-0042:RMPF-2026-0017/1 registered (ACTIVE)",
+        "department": "Manufacturing",
+        "subDepartment": "Raw Material Preparation",
+        "performedBy": "admin",
+        "timestamp": "2026-09-30T12:00:00",
+        "blockNumber": null,
+        "channelName": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 10,
+      "totalRecords": 1,
+      "totalPages": 1
+    }
+  },
+  "timestamp": "2026-09-30T12:00:00"
+}

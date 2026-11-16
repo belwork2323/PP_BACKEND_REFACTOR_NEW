@@ -1,0 +1,91 @@
+package in.co.bel.acempp.security;
+
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.time.LocalDateTime;
+
+import static org.springframework.security.config.http.SessionCreationPolicy.STATELESS;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity          // ← enables @PreAuthorize
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                .cors(cors -> {})
+                .csrf(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(STATELESS))
+
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("""
+                            {
+                              "success": false,
+                              "code": 401,
+                              "message": "Unauthorized access",
+                              "errorCode": "UNAUTHORIZED",
+                              "timestamp": "%s"
+                            }
+                            """.formatted(LocalDateTime.now().toString()));
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {  // ← renamed ex → accessDeniedException
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("""
+                        {
+                          "success": false,
+                          "code": 403,
+                          "message": "Access denied",
+                          "errorCode": "FORBIDDEN",
+                          "timestamp": "%s"
+                        }
+                        """.formatted(LocalDateTime.now().toString()));
+                        })
+                )
+                .authorizeHttpRequests(auth -> auth
+                                .requestMatchers("/api/v1/auth/logout").authenticated()
+                                .requestMatchers(
+                                        "/api/v1/auth/**",
+                                        "/api/v1/system/**"
+//                                "/api/v1/auth/generate-captcha",
+//                                "/api/v1/auth/refresh-token"
+                                ).permitAll()
+                                .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+}

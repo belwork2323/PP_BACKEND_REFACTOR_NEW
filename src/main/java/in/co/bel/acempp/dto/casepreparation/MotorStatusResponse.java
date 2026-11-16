@@ -1,0 +1,24 @@
+package in.co.bel.acempp.dto.casepreparation;
+
+import in.co.bel.acempp.enums.Status;
+import lombok.*;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class MotorStatusResponse {
+
+    private String motorId;
+
+    private String division;
+
+    private String subType;
+
+    private Status motorSubmissionType;
+
+    private Status motorSubmissionStatus;
+
+    /** true = UI must disable this unit; server will reject edits. Computed on read, not persisted. */
+    private Boolean locked;
+}
