@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Data
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class SubscaleDetailsDTO {
     private Integer batchSize;
     private LocalDate premixDate;
@@ -27,7 +26,6 @@ public class SubscaleDetailsDTO {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MixingCycle {
         private Integer motorStage;
         private Integer mixingCycleId;
@@ -41,7 +39,6 @@ public class SubscaleDetailsDTO {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MixParticular {
         private Integer operationId;
         private String operation;

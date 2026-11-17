@@ -15,6 +15,11 @@ public final class ValidationConstants {
     public static final String OPTIONAL_DESCRIPTIVE_TEXT_PATTERN =
             "^$|^[A-Za-z0-9\\s\\-_,./:()]+$";
 
+    public static final String ALPHABET_WITH_SPECIAL = "^[a-zA-Z0-9\\s\\-_./(),&+:]+$";
+    public static final int MAX_STANDARD = 100;
+    public static final int MAX_SHORT = 50;
+    public static final int MAX_LONG_TEXT = 500;
+
     private ValidationConstants() {
     }
 }

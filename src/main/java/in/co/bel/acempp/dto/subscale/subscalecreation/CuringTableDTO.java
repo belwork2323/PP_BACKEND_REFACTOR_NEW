@@ -2,30 +2,41 @@ package in.co.bel.acempp.dto.subscale.subscalecreation;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import in.co.bel.acempp.validation.groups.DraftGroup;
+import in.co.bel.acempp.validation.groups.SubmitGroup;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
 
 @Data
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class CuringTableDTO {
+    @Size(max = 100)
     private String articleType;
-    /** Article No / BEM No (synced from casting); legacy JSON key: bemMouldNo. */
+
+    @Size(max = 50)
     @JsonAlias("bemMouldNo")
     private String bemNo;
-    @JsonAlias("curingStartDate")
-    @Field("curingStartDate")
+
     private LocalDateTime curingStartDateTime;
-    @JsonAlias("curingEndDate")
-    @Field("curingEndDate")
     private LocalDateTime curingEndDateTime;
+
+    @Size(max = 100)
     private String ovenNo;
+
+    // Frontend: TEMPERATURE -> numberRule()
+    @Pattern(regexp = "^\\d*\\.?\\d*$", message = "Invalid temperature format", groups = {DraftGroup.class, SubmitGroup.class})
     private String temperature;
+
+    @Size(max = 100)
     private String hardness;
-    @JsonAlias("decoringDate")
-    @Field("decoringDate")
+
     private LocalDateTime decoringDateTime;
+
     private String decoringLoad;
+
+    @Size(max = 500)
     private String grainSurfaceObservations;
 }

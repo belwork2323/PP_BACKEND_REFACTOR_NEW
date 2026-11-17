@@ -1,16 +1,23 @@
 package in.co.bel.acempp.controller.manufacturing;
+
 import in.co.bel.acempp.dto.AcemResponse;
 import in.co.bel.acempp.dto.subscale.*;
 import in.co.bel.acempp.dto.subscale.subscalecreation.CreateSubscaleProcessingRequest;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.exception.AcemTemplate;
 import in.co.bel.acempp.service.manufacturing.SubscaleProcessingService;
+import in.co.bel.acempp.validation.DtoValidationService;
+import in.co.bel.acempp.validation.groups.CreateGroup;
+import in.co.bel.acempp.validation.groups.UpdateGroup;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/user/subscale")
@@ -20,13 +27,14 @@ import org.springframework.web.bind.annotation.*;
 public class SubscaleProcessingController {
 
     private final SubscaleProcessingService service;
+    private final DtoValidationService dtoValidationService;
 
     @PostMapping("/form/create")
-    public ResponseEntity<AcemResponse<SubscaleProcessingResponse>> createForm(
-            @RequestBody CreateSubscaleProcessingRequest body,
-            Authentication authentication) {
-
-       String userId = (String) authentication.getDetails();
+    public ResponseEntity<AcemResponse<SubscaleProcessingResponse>> createForm(@Validated(CreateGroup.class)
+                                                                               @RequestBody CreateSubscaleProcessingRequest body,
+                                                                               Authentication authentication) {
+        validateSubscaleProcessing(body);
+        String userId = (String) authentication.getDetails();
         SubscaleProcessingResponse response = service.createForm(body, userId);
 
         String message = body.getFormSubmissionType() == Status.DRAFT
@@ -35,12 +43,13 @@ public class SubscaleProcessingController {
 
         return AcemTemplate.created(response, message);
     }
+
     @PutMapping("/form/update")
-    public ResponseEntity<AcemResponse<UpdateSubscaleProcessingResponse>> updateForm(
-            @RequestBody CreateSubscaleProcessingRequest body,
-            Authentication authentication) {
+    public ResponseEntity<AcemResponse<UpdateSubscaleProcessingResponse>> updateForm(@Validated(UpdateGroup.class)
+                                                                                     @RequestBody CreateSubscaleProcessingRequest body,
+                                                                                     Authentication authentication) {
 
-
+        validateSubscaleProcessing(body);
         String userId = (String) authentication.getDetails();
         UpdateSubscaleProcessingResponse response = service.updateForm(body, userId);
 
@@ -51,13 +60,6 @@ public class SubscaleProcessingController {
         return AcemTemplate.success(response, message);
     }
 
-//    @PreAuthorize("hasAnyAuthority('User', 'Approver')")
-//    @PostMapping("/form/details")
-//    public ResponseEntity<AcemResponse<Map<String, Object>>> getFormDetails(
-//            @Valid @RequestBody SubscaleProcessingDetailsRequest request) {
-//        Map<String, Object> data = service.getFormDetailsAsMap(request.getFormId());
-//        return AcemTemplate.success(data, "Subscale Processing details fetched successfully");
-//    }
     @PreAuthorize("hasAnyAuthority('User', 'Approver', 'System Manager', 'Admin', 'Centre Head')")
     @PostMapping("/form/details")
     public ResponseEntity<AcemResponse<SubscaleProcessingDetailsResponse>> getFormDetails(
@@ -65,4 +67,12 @@ public class SubscaleProcessingController {
         return AcemTemplate.success(service.getFormDetails(request.getFormId()),
                 "Subscale Processing form details fetched successfully");
     }
+
+    private void validateSubscaleProcessing(CreateSubscaleProcessingRequest request) {
+        if (request == null || request.getSubDepartmentId() == null) return;
+        Long subDeptId = request.getSubDepartmentId();
+        dtoValidationService.validateDto(request, subDeptId);
+
+    }
+
 }

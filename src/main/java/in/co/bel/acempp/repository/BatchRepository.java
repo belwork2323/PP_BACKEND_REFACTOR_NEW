@@ -315,27 +315,39 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
 
     default StatusCountsDto getStatusCounts(Long subDeptId) {
         MongoTemplate mongoTemplate = ApplicationContextProvider.getBean(MongoTemplate.class);
+
         Aggregation agg = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("isDeleted").ne(true)),
                 Aggregation.unwind("stageProgress"),
                 Aggregation.match(Criteria.where("stageProgress.subDepartmentId").is(subDeptId)),
                 Aggregation.group("stageProgress.status").count().as("count")
         );
-        AggregationResults<Map> results = mongoTemplate.aggregate(agg, Batch.class, Map.class);
+
+        AggregationResults<Map> results =
+                mongoTemplate.aggregate(agg, Batch.class, Map.class);
+
         Map<String, Long> map = new HashMap<>();
+
         results.forEach(entry -> {
-            String s = (String) entry.get("_id");
+            String status = (String) entry.get("_id");
             Object rawCount = entry.get("count");
-            Long c = rawCount instanceof Long ? (Long) rawCount
-                    : rawCount instanceof Integer ? ((Integer) rawCount).longValue() : 0L;
-            if (s != null) map.put(s, c);
+
+            Long count = rawCount instanceof Number
+                    ? ((Number) rawCount).longValue()
+                    : 0L;
+
+            if (status != null) {
+                map.put(status, count);
+            }
         });
+
         return StatusCountsDto.builder()
                 .initiated(map.getOrDefault("TO_BE_INITIATED", 0L))
                 .inProgress(map.getOrDefault("IN_PROGRESS", 0L))
-                .waitingForApproval(map.getOrDefault("WAITING_FOR_APPROVAL", 0L))
-                .waitingForPartialApproval(map.getOrDefault("WAITING_FOR_PARTIAL_APPROVAL", 0L))
-                .waitingForCompleteApproval(map.getOrDefault("WAITING_FOR_COMPLETE_APPROVAL", 0L))
+                .waitingForPartialApproval(
+                        map.getOrDefault("WAITING_FOR_APPROVAL", 0L)
+                                + map.getOrDefault("WAITING_FOR_PARTIAL_APPROVAL", 0L)
+                )
                 .approved(map.getOrDefault("APPROVED", 0L))
                 .finalApprovalCompleted(map.getOrDefault("COMPLETELY_APPROVED", 0L))
                 .rejected(map.getOrDefault("REJECTED", 0L))

@@ -830,10 +830,12 @@ public final class QcDivisionPayloads {
         private String bowlId;
         @JsonAlias("bowlReceiptTime")
         private LocalDateTime bowlReceiptDateTime;
+        private LocalDateTime castingStartDateTime;
         @JsonAlias("dcOpenTime")
         private LocalDateTime dcOpenDateTime;
         @JsonAlias("dcCloseTime")
         private LocalDateTime dcCloseDateTime;
+        private LocalDateTime castingCompletionDateTime;
         @JsonDeserialize(using = BigDecimalValue.class)
         private BigDecimal initialWeight;
         @JsonDeserialize(using = BigDecimalValue.class)
@@ -844,6 +846,34 @@ public final class QcDivisionPayloads {
         private BigDecimal slurryDepthAfterDc;
         @JsonAlias("ballValveOpenTime")
         private LocalDateTime ballValveOpenDateTime;
+
+        public void setBowlReceiptDateTime(LocalDateTime value) {
+            bowlReceiptDateTime = castingStartDateTime != null ? castingStartDateTime : value;
+            if (castingStartDateTime == null) castingStartDateTime = value;
+        }
+
+        public void setDcOpenDateTime(LocalDateTime value) {
+            dcOpenDateTime = castingStartDateTime != null ? castingStartDateTime : value;
+            if (castingStartDateTime == null) castingStartDateTime = value;
+        }
+
+        public void setDcCloseDateTime(LocalDateTime value) {
+            dcCloseDateTime = castingCompletionDateTime != null ? castingCompletionDateTime : value;
+            if (castingCompletionDateTime == null) castingCompletionDateTime = value;
+        }
+
+        public void setCastingStartDateTime(LocalDateTime value) {
+            castingStartDateTime = value;
+            if (value != null) {
+                bowlReceiptDateTime = value;
+                dcOpenDateTime = value;
+            }
+        }
+
+        public void setCastingCompletionDateTime(LocalDateTime value) {
+            castingCompletionDateTime = value;
+            if (value != null) dcCloseDateTime = value;
+        }
     }
 
     @Data

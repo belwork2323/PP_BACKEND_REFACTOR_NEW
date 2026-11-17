@@ -92,7 +92,7 @@ public class BatchService {
 
 
     //    --------------------------CREATE BATCH----------------------------------------------------------------------------------
-    public BatchResponseData createBatch(CreateBatchRequest request, String userId) {
+    public BatchResponseData createBatch(BatchRequest request, String userId) {
 
         User creator = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new AcemException(
@@ -224,7 +224,7 @@ public class BatchService {
     }
 //    --------------------------UPDATE BATCH----------------------------------------------------------------------------------
 
-    public UpdateBatchResponse updateBatch(UpdateBatchRequest request, String userId) {
+    public UpdateBatchResponse updateBatch(BatchRequest request, String userId) {
 
         // 1. Find existing batch
         Batch batch = batchRepository.findByBatchId(request.getBatchId())
@@ -236,9 +236,20 @@ public class BatchService {
         }
         User updater = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new AcemException(ErrorCode.USER_NOT_FOUND, "Updater not found"));
-        User sysMgr = userRepository.findByUserId(request.getSystemManagerId())
-                .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
-                        "System Manager not found: " + request.getSystemManagerId()));
+
+        boolean isSubscale = "SUBSCALE".equalsIgnoreCase(request.getBatchType());
+        User sysMgr = null;
+        if (!isSubscale || (request.getSystemManagerId() != null && !request.getSystemManagerId().isBlank())) {
+            if (request.getSystemManagerId() == null || request.getSystemManagerId().isBlank()) {
+                throw new AcemException(
+                        ErrorCode.INVALID_REQUEST,
+                        "System Manager is required for main batches");
+            }
+            sysMgr = userRepository.findByUserId(request.getSystemManagerId())
+                    .orElseThrow(() -> new AcemException(
+                            ErrorCode.DEPENDENCY_NOT_FOUND,
+                            "System Manager not found: " + request.getSystemManagerId()));
+        }
         // 2. Basic request validation (same as create)
         validateUpdateRequest(request);
 
@@ -290,10 +301,10 @@ public class BatchService {
         batch.setNumberOfMotors(request.getNumberOfMotors());
         batch.setMotorIds(request.getMotorIds());
         batch.setObjective(request.getObjective());
-        batch.setSystemManager(PersonInfo.builder()
-                .id(request.getSystemManagerId())
+        batch.setSystemManager(sysMgr != null ? PersonInfo.builder()
+                .id(sysMgr.getUserId())
                 .fullName(sysMgr.getUsername())
-                .build());
+                .build() : null);
 
         // 5. Update identification sheet (if provided)
         if (request.getIdentificationSheet() != null) {
@@ -362,7 +373,7 @@ public class BatchService {
                 .batchType(batch.getBatchType())
                 .subBatchType(batch.getSubBatchType())
                 .projectId(batch.getProjectId())
-                .systemManagerId(sysMgr.getUserId())
+                .systemManagerId(sysMgr != null ? sysMgr.getUserId() : null)
                 .identificationSheetStatus(batch.getIdentificationSheetStatus())
                 .currentStage(stageProgressDisplayEnricher.enrichCopies(
                         batch, currentStagesForDisplay(batch)))
@@ -988,7 +999,7 @@ public class BatchService {
     }
 
     // ─────── validation ───────
-    private void validateRequest(CreateBatchRequest request) {
+    private void validateRequest(BatchRequest request) {
         if (request.getBatchType() == null || request.getBatchType().isBlank()) {
             throw new AcemException(ErrorCode.INVALID_REQUEST, "batchType is required");
         }
@@ -1036,7 +1047,7 @@ public class BatchService {
 //            }
 //        }
 //    }
-    private void validateMotorIds(CreateBatchRequest request) {
+    private void validateMotorIds(BatchRequest request) {
         if (request.getMotorIds() == null || request.getMotorIds().isEmpty()) {
             return;   // already handled by other checks
         }
@@ -1065,7 +1076,7 @@ public class BatchService {
         rejectUnavailableMotors(request.getMotorIds(), Set.of());
     }
 
-    private void validateReferences(CreateBatchRequest request) {
+    private void validateReferences(BatchRequest request) {
         if (request.getSystemManagerId() != null && !request.getSystemManagerId().isBlank()) {
             userRepository.findByUserId(request.getSystemManagerId())
                     .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
@@ -1202,12 +1213,14 @@ public class BatchService {
                 && safeStageProgress(batch).isEmpty();
     }
 
-    private void validateUpdateRequest(UpdateBatchRequest request) {
-        // Same as create, but without forcing motorStage if not needed? Actually request requires it.
+    private void validateUpdateRequest(BatchRequest request) {
         if (request.getBatchType() == null || request.getBatchType().isBlank()) {
             throw new AcemException(ErrorCode.INVALID_REQUEST, "batchType is required");
         }
+
         String type = request.getBatchType().toUpperCase();
+        boolean isSubscale = "SUBSCALE".equals(type);
+
         if ("MAIN".equals(type)) {
             if (request.getProjectId() == null || request.getProjectId().isBlank())
                 throw new AcemException(ErrorCode.INVALID_REQUEST, "projectId is required for MAIN");
@@ -1215,8 +1228,7 @@ public class BatchService {
                 throw new AcemException(ErrorCode.INVALID_REQUEST, "motorIds are required");
             // motorIds is source of truth; align count (FE draft field is often 0 after add)
             request.setNumberOfMotors(request.getMotorIds().size());
-//            validateCompositionSum(request.getIdentificationSheet());
-        } else if ("SUBSCALE".equals(type)) {
+        } else if (isSubscale) {
             if (request.getSubBatchType() == null)
                 throw new AcemException(ErrorCode.INVALID_REQUEST, "subBatchType is required");
             String sub = request.getSubBatchType().toUpperCase();
@@ -1233,16 +1245,19 @@ public class BatchService {
                     throw new AcemException(ErrorCode.INVALID_REQUEST, "objective is required");
             }
         }
-        if (request.getSystemManagerId() == null || request.getSystemManagerId().isBlank())
-            throw new AcemException(ErrorCode.INVALID_REQUEST, "systemManagerId is required");
+
+        if (!isSubscale) {
+            if (request.getSystemManagerId() == null || request.getSystemManagerId().isBlank()) {
+                throw new AcemException(ErrorCode.INVALID_REQUEST, "systemManagerId is required for main batches");
+            }
+        }
     }
 
-    private void validateMotorIdsForUpdate(UpdateBatchRequest request) {
+    private void validateMotorIdsForUpdate(BatchRequest request) {
         if (request.getMotorIds() == null || request.getMotorIds().isEmpty()) {
             return;   // already handled by other checks
         }
 
-        // Fetch approved casings for this project and stage
         List<RocketMotorCasing> approved = rmcRepository.findByProjectIdAndMotorStageAndStatusAndActiveTrue(
                 request.getProjectId(),
                 request.getMotorStage(),
@@ -1278,10 +1293,7 @@ public class BatchService {
         rejectUnavailableMotors(request.getMotorIds(), alreadyOnBatch);
     }
 
-    /**
-     * Rejects motors that are discarded or dispatch-approved on any batch,
-     * except IDs already attached to the batch being updated ({@code allowlist}).
-     */
+
     private void rejectUnavailableMotors(List<String> motorIds, Set<String> allowlist) {
         if (motorIds == null || motorIds.isEmpty()) {
             return;
@@ -1317,21 +1329,37 @@ public class BatchService {
         }
     }
 
-    private void validateReferencesForUpdate(UpdateBatchRequest request) {
-        userRepository.findByUserId(request.getSystemManagerId())
-                .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
-                        "System Manager not found: " + request.getSystemManagerId()));
+    private void validateReferencesForUpdate(BatchRequest request) {
+        boolean isSubscale = "SUBSCALE".equalsIgnoreCase(request.getBatchType());
+        boolean hasSystemManager = request.getSystemManagerId() != null
+                && !request.getSystemManagerId().isBlank();
+
+        if (!isSubscale) {
+            if (!hasSystemManager) {
+                throw new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
+                        "System Manager not found: " + request.getSystemManagerId());
+            }
+            userRepository.findByUserId(request.getSystemManagerId())
+                    .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
+                            "System Manager not found: " + request.getSystemManagerId()));
+        } else if (hasSystemManager) {
+            // Optional for subscale, but validate if provided
+            userRepository.findByUserId(request.getSystemManagerId())
+                    .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
+                            "System Manager not found: " + request.getSystemManagerId()));
+        }
+
         if (request.getProjectId() != null) {
             projectRepository.findByProjectId(request.getProjectId())
                     .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
                             "Project not found: " + request.getProjectId()));
         }
+
         if (request.getIdentificationSheet() != null
                 && request.getIdentificationSheet().getMaterials() != null) {
             for (BatchMaterialDto mat : request.getIdentificationSheet().getMaterials()) {
                 if (mat.getLotIds() != null) {
                     for (String lotId : mat.getLotIds()) {
-                        // Your exact single-parameter repository method called per lot ID
                         Lot lot = lotRepository.findByLotId(lotId)
                                 .orElseThrow(() -> new AcemException(ErrorCode.DEPENDENCY_NOT_FOUND,
                                         "Lot not found: " + lotId));

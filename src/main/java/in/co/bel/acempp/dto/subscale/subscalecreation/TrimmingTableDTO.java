@@ -1,10 +1,12 @@
 package in.co.bel.acempp.dto.subscale.subscalecreation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import in.co.bel.acempp.validation.groups.DraftGroup;
+import in.co.bel.acempp.validation.groups.SubmitGroup;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Data
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class TrimmingTableDTO {
     private String articleType;
     private String bemNo;
@@ -18,5 +20,6 @@ public class TrimmingTableDTO {
     private String nePortOuter;
     private String neWebInner;
     private String neWebOuter;
+    @Pattern(regexp = "^\\d*\\.?\\d*$", message = "Invalid numeric format", groups = {DraftGroup.class, SubmitGroup.class})
     private String lengthBeforeInhibition;
 }

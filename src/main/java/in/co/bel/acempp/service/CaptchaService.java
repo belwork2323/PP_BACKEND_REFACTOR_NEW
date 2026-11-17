@@ -183,7 +183,6 @@ public class CaptchaService {
 
         // Dev/testing bypass — accept any non-blank id+value without matching the image.
         if (captchaBypass) {
-            log.warn("captcha.bypass=true — accepting captcha without text match (id={})", id);
             captchaRepository.findById(id).ifPresent(captcha -> {
                 if (!captcha.isUsed()) {
                     captcha.setUsed(true);

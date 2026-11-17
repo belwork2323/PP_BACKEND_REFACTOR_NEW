@@ -42,7 +42,7 @@ public class CastingCuringController {
     public ResponseEntity<AcemResponse<CastingCuringFormResponse>> createForm(
             @Validated(CreateGroup.class) @RequestBody CastingCuringRequest request,
             Authentication authentication) {
-//        validateMotors(request.getMotors());
+        validateMotors(request.getMotors());
         String userId = (String) authentication.getDetails();
         CastingCuringFormResponse response = ccService.createForm(request, userId);
         return AcemTemplate.created(response, "Casting and curing form submitted successfully");
@@ -52,7 +52,7 @@ public class CastingCuringController {
     public ResponseEntity<AcemResponse<CastingCuringFormResponse>> updateForm(
             @Validated(UpdateGroup.class) @RequestBody CastingCuringRequest request,
             Authentication authentication) {
-//        validateMotors(request.getMotors());
+        validateMotors(request.getMotors());
         String userId = (String) authentication.getDetails();
         CastingCuringFormResponse response = ccService.updateForm(request, userId);
         return AcemTemplate.success(response,
@@ -69,12 +69,12 @@ public class CastingCuringController {
         return AcemTemplate.success(data, "Casting and Curing form details fetched successfully");
     }
 
-//    private void validateMotors(List<CastingCuringMotor> motors) {
-//        if (motors == null) return;
-//
-//        for (CastingCuringMotor motor : motors) {
-//            if (motor == null) continue;
-//            dtoValidationService.validateDto(motor, motor.getMotorSubmissionType());
-//        }
-//    }
+    private void validateMotors(List<CastingCuringMotor> motors) {
+        if (motors == null) return;
+
+        for (CastingCuringMotor motor : motors) {
+            if (motor == null) continue;
+            dtoValidationService.validateDto(motor, motor.getMotorSubmissionType());
+        }
+    }
 }

@@ -11,11 +11,14 @@ import in.co.bel.acempp.audit.Audit;
 import in.co.bel.acempp.enums.AuditAction;
 import in.co.bel.acempp.exception.AcemTemplate;
 import in.co.bel.acempp.service.*;
+import in.co.bel.acempp.validation.groups.CreateGroup;
+import in.co.bel.acempp.validation.groups.UpdateGroup;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -176,21 +179,22 @@ public class AdminController {
 
     @PostMapping("/batch/create")
     public ResponseEntity<AcemResponse<BatchResponseData>> createBatch(
-            @Valid @RequestBody CreateBatchRequest request,
+            @Validated(CreateGroup.class) @RequestBody BatchRequest request,
             Authentication authentication) {
         String userId = (String) authentication.getDetails();
-        return AcemTemplate.created(
-                batchService.createBatch(request, userId),
-                "Batch created successfully");
+        String message = request.getIdentificationSheet() == null
+                ? "Batch saved as draft successfully"
+                : "Batch created successfully";
+        return AcemTemplate.created(batchService.createBatch(request, userId), message);
     }
 
     @PutMapping("/batch/update")
     public ResponseEntity<AcemResponse<UpdateBatchResponse>> updateBatch(
-            @Valid @RequestBody UpdateBatchRequest request,
+            @Validated(UpdateGroup.class) @RequestBody BatchRequest request,
             Authentication authentication) {
         String userId = (String) authentication.getDetails();
-        UpdateBatchResponse response = batchService.updateBatch(request, userId);
-        return AcemTemplate.success(response, "Batch updated successfully");
+        return AcemTemplate.success(batchService.updateBatch(request, userId),
+                "Batch updated successfully");
     }
 
     @PreAuthorize("hasAnyAuthority('Admin','System Manager', 'User', 'Approver', 'Centre Head')")
