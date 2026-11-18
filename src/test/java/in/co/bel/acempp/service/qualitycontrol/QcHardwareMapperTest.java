@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import in.co.bel.acempp.config.JacksonDateTimeConfig;
+import in.co.bel.acempp.dto.casepreparation.CasePreparationMotorRequest;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingCutRow;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingDetail;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingOperation;
@@ -12,7 +13,6 @@ import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.Dispa
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.ParameterValueRow;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.LinerCoatingOperation;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.PreHeating;
-import in.co.bel.acempp.dto.casepreparation.Motor;
 import in.co.bel.acempp.dto.qcdivision.QcDivisionPayloads.HardwareMotorResponse;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.service.manufacturing.CasePreparationAbradingMapper;
@@ -31,7 +31,7 @@ class QcHardwareMapperTest {
 
     @Test
     void preservesSourceDateTimesAndFormatsCombinedDispatchDateTime() {
-        Motor motor = Motor.builder()
+        CasePreparationMotorRequest motor = CasePreparationMotorRequest.builder()
                 .motorId("RMC-2026-27-001")
                 .preHeating(PreHeating.builder()
                         .preHeatingDateTime(LocalDateTime.of(2026, 10, 31, 1, 15))
@@ -80,7 +80,7 @@ class QcHardwareMapperTest {
                 .registerModule(new JavaTimeModule())
                 .registerModule(new JacksonDateTimeConfig().flexibleDateInputModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        Motor motor = jsonMapper.readValue("""
+        CasePreparationMotorRequest motor = jsonMapper.readValue("""
                 {
                   "motorId": "RMC-2026-27-001",
                   "abradingOperation": {
@@ -104,7 +104,7 @@ class QcHardwareMapperTest {
                     ]
                   }
                 }
-                """, Motor.class);
+                """, CasePreparationMotorRequest.class);
 
         HardwareMotorResponse response = mapper.toHardwareMotorResponse(
                 motor, Status.DRAFT, null, null, null);
@@ -125,7 +125,7 @@ class QcHardwareMapperTest {
 
     @Test
     void fillsMissingAbradingDateTimesFromLegacyDetailsWithoutReplacingCutRowData() {
-        Motor motor = Motor.builder()
+        CasePreparationMotorRequest motor = CasePreparationMotorRequest.builder()
                 .abradingOperation(AbradingOperation.builder()
                         .firstCut(List.of(AbradingCutRow.builder()
                                 .srNo(1)
@@ -150,7 +150,7 @@ class QcHardwareMapperTest {
 
     @Test
     void fallbackHardwareDateDoesNotCombineDateWithTime() {
-        Motor motor = Motor.builder()
+        CasePreparationMotorRequest motor = CasePreparationMotorRequest.builder()
                 .preHeating(PreHeating.builder()
                         .preHeatingDateTime(LocalDateTime.of(2026, 10, 31, 1, 15))
                         .build())
@@ -164,7 +164,7 @@ class QcHardwareMapperTest {
 
     @Test
     void serializesCasePreparationDateAndDateTimeFieldsWithExplicitNames() {
-        Motor motor = Motor.builder()
+        CasePreparationMotorRequest motor = CasePreparationMotorRequest.builder()
                 .prrcClearanceDate(LocalDate.of(2026, 10, 31))
                 .preHeating(PreHeating.builder()
                         .preHeatingDateTime(LocalDateTime.of(2026, 10, 31, 1, 15))

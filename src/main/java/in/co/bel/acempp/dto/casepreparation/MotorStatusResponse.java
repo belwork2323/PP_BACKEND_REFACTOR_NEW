@@ -18,7 +18,5 @@ public class MotorStatusResponse {
     private Status motorSubmissionType;
 
     private Status motorSubmissionStatus;
-
-    /** true = UI must disable this unit; server will reject edits. Computed on read, not persisted. */
     private Boolean locked;
 }

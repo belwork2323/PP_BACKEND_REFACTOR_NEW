@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class StfPayloads {
@@ -73,7 +74,7 @@ public final class StfPayloads {
     @AllArgsConstructor
     public static class MainTestHeader extends StrictPayload {
         /** Local ISO datetime string (e.g. {@code 2026-10-08T14:30:00}). */
-        private String firingDate;
+        private LocalDateTime firingDateTime;
         @JsonDeserialize(using = BigDecimalValue.class)
         private BigDecimal ambientTemperature;
         /** QA section remarks (QC-entered); ignored by manufacturing UI. */
@@ -152,7 +153,7 @@ public final class StfPayloads {
         private String loadingNo;
         private String firingNo;
         /** Local ISO datetime string (e.g. {@code 2026-10-08T14:30:00}). */
-        private String firingDate;
+        private LocalDateTime firingDateTime;
         @JsonDeserialize(using = BigDecimalValue.class)
         private BigDecimal temperature;
         @JsonDeserialize(using = BigDecimalValue.class)

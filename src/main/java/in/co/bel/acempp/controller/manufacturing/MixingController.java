@@ -78,55 +78,9 @@ public class MixingController {
             for (int premixIndex = 0; premixIndex < stage.getPremixes().size(); premixIndex++) {
                 PremixDto premix = stage.getPremixes().get(premixIndex);
                 if (premix == null) continue;
-                try {
-                    validatePremixEntry(stage.getStageType(), premix);
-                } catch (AcemValidationException exception) {
-                    throw new AcemValidationException(
-                            exception.getMessage(),
-                            premixErrorTree(stageIndex, premixIndex, exception.getErrors()));
-                }
+                dtoValidationService.validateDto(premix, premix.getPremixSubmissionType(), SubmitGroup.class);
+
             }
         }
     }
-
-    private void validatePremixEntry(StageType stageType, PremixDto premix) {
-        if (stageType == StageType.PREMIX) {
-            dtoValidationService.validateDto(
-                    premix,
-                    premix.getPremixSubmissionType(),
-                    SubmitGroup.class,
-                    PremixStageSubmitGroup.class);
-            return;
-        }
-        dtoValidationService.validateDto(premix, premix.getPremixSubmissionType(), SubmitGroup.class);
-    }
-
-    private Map<String, Object> premixErrorTree(
-            int stageIndex,
-            int premixIndex,
-            Map<String, Object> premixErrors) {
-
-        List<Map<String, Object>> premixes = indexedList(premixIndex);
-        premixes.set(premixIndex, premixErrors);
-
-        Map<String, Object> stage = new LinkedHashMap<>();
-        stage.put("premixes", premixes);
-        List<Map<String, Object>> stages = indexedList(stageIndex);
-        stages.set(stageIndex, stage);
-
-        Map<String, Object> details = new LinkedHashMap<>();
-        details.put("stages", stages);
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("mixingDetails", details);
-        return root;
-    }
-
-    private List<Map<String, Object>> indexedList(int index) {
-        List<Map<String, Object>> items = new ArrayList<>();
-        for (int position = 0; position <= index; position++) {
-            items.add(new LinkedHashMap<>());
-        }
-        return items;
-    }
-
 }

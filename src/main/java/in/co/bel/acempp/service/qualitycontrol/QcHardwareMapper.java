@@ -1,7 +1,7 @@
 package in.co.bel.acempp.service.qualitycontrol;
 
+import in.co.bel.acempp.dto.casepreparation.CasePreparationMotorRequest;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.*;
-import in.co.bel.acempp.dto.casepreparation.Motor;
 import in.co.bel.acempp.dto.qcdivision.QcDivisionPayloads.*;
 import in.co.bel.acempp.dto.rocketmotorcasing.DocumentDto;
 import in.co.bel.acempp.enums.Status;
@@ -25,7 +25,7 @@ public class QcHardwareMapper {
     private final CasePreparationAbradingMapper casePreparationAbradingMapper;
 
     public HardwareMotorInput toHardwareMotorInput(
-            Motor motor,
+            CasePreparationMotorRequest motor,
             String buildingNo,
             String ovenNo,
             String rh) {
@@ -44,7 +44,7 @@ public class QcHardwareMapper {
     }
 
     public HardwareMotorResponse toHardwareMotorResponse(
-            Motor motor,
+            CasePreparationMotorRequest motor,
             Status motorSubmissionStatus,
             String buildingNo,
             String ovenNo,
@@ -195,7 +195,7 @@ public class QcHardwareMapper {
                 .build();
     }
 
-    private HardwareAttachments mapAttachments(Motor motor) {
+    private HardwareAttachments mapAttachments(CasePreparationMotorRequest motor) {
         List<DocumentDto> uploadPhoto = new ArrayList<>();
         if (motor.getAbradingOperation() != null) {
             casePreparationAbradingMapper.normalize(motor.getAbradingOperation());

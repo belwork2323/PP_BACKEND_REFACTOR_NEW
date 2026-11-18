@@ -24,11 +24,8 @@ public class ProcessParticularRowDto {
     private String operationName;
 
     @NotNull(message = "RPM is required", groups = SubmitGroup.class)
-    @PositiveOrZero(message = "RPM cannot be negative", groups = {DraftGroup.class, SubmitGroup.class})
-    @Digits(integer = 8, fraction = 2, message = "RPM can have up to 8 digits and 2 decimal places",
-            groups = {DraftGroup.class, SubmitGroup.class})
 //    @JsonDeserialize(using = StrictScalarDeserializers.JsonNumberBigDecimalValue.class)
-    private BigDecimal rpm;
+    private Integer rpm;
 
     @NotNull(message = "Time in minutes is required", groups = SubmitGroup.class)
     @PositiveOrZero(message = "Time in minutes cannot be negative", groups = {DraftGroup.class, SubmitGroup.class})

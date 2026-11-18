@@ -115,8 +115,8 @@ public class CasePreparationService {
                     Collections.emptySet() // No existing files during creation
             );
 
-            CasePreparationDetails persistedDetails = casePreparationDtoMapper.toPersistence(request.getCasePreparationDetails());
-            List<Motor> motors = persistedDetails.getMotors();
+            CasePreparationDetailsRequest persistedDetails = casePreparationDtoMapper.toPersistence(request.getCasePreparationDetails());
+            List<CasePreparationMotorRequest> motors = persistedDetails.getMotors();
             motors.forEach(motor -> motor.setMotorSubmissionStatus(
                     resolveMotorSubmissionStatus(motor.getMotorSubmissionType())));
 
@@ -132,7 +132,6 @@ public class CasePreparationService {
             CasePreparation entity = CasePreparation.builder()
                     .formId(formId)
                     .batchId(request.getBatchId())
-                    .batchType(request.getBatchType().toUpperCase())
                     .subDepartmentId(request.getSubDepartmentId())
                     .formSubmissionType(request.getFormSubmissionType())
                     .status(batchStatus)
@@ -172,11 +171,13 @@ public class CasePreparationService {
             return CasePreparationResponse.builder()
                     .formId(entity.getFormId())
                     .batchId(entity.getBatchId())
-                    .batchType(entity.getBatchType())
                     .subDepartmentId(entity.getSubDepartmentId())
                     .formSubmissionType(entity.getFormSubmissionType())
                     .status(batchStatus)
-                    .submittedBy(userId)
+                    .submittedBy(PersonInfo.builder()
+                            .id(user.getUserId())
+                            .fullName(user.getUsername())
+                            .build())
                     .submittedAt(now)
                     .pendingMotorCount(pending)
                     .approvedMotorCount(approved)
@@ -194,7 +195,7 @@ public class CasePreparationService {
         }
     }
 
-    public CasePreparationResponse updateForm(UpdateCasePreparationRequest request, String userId) {
+    public CasePreparationResponse updateForm(CreateCasePreparationRequest request, String userId) {
         ApprovalStatusUtil.requireDraftFormWorkflow(request.getFormSubmissionType());
 
         // 1. Fetch existing form & batch
@@ -225,10 +226,10 @@ public class CasePreparationService {
         boolean isFinalFormSubmit = (request.getFormSubmissionType() == Status.SUBMIT);
 
         // Map existing motors by Motor ID
-        Map<String, Motor> existingMotorMap =
+        Map<String, CasePreparationMotorRequest> existingMotorMap =
                 form.getCasePreparationDetails() != null && form.getCasePreparationDetails().getMotors() != null
                         ? new HashMap<>(form.getCasePreparationDetails().getMotors().stream()
-                        .collect(Collectors.toMap(Motor::getMotorId, Function.identity())))
+                        .collect(Collectors.toMap(CasePreparationMotorRequest::getMotorId, Function.identity())))
                         : new HashMap<>();
 
         // 2. Validate modification rules & batch membership
@@ -241,7 +242,7 @@ public class CasePreparationService {
                 }
                 BatchMotorDiscardHelper.assertNotDiscarded(batch, motorRequest.getMotorId());
 
-                Motor existing = existingMotorMap.get(motorRequest.getMotorId());
+                CasePreparationMotorRequest existing = existingMotorMap.get(motorRequest.getMotorId());
                 if (existing != null) {
                     Status currentStatus = existing.getMotorSubmissionStatus();
                     if (currentStatus == Status.WAITING_FOR_APPROVAL || currentStatus == Status.APPROVED) {
@@ -259,7 +260,7 @@ public class CasePreparationService {
         List<CasePreparationMotorRequest> incomingMotors = request.getCasePreparationDetails().getMotors();
 
         for (CasePreparationMotorRequest motorRequest : incomingMotors) {
-            Motor existing = existingMotorMap.get(motorRequest.getMotorId());
+            CasePreparationMotorRequest existing = existingMotorMap.get(motorRequest.getMotorId());
 
             if (existing != null &&
                     (existing.getMotorSubmissionStatus() == Status.APPROVED ||
@@ -267,13 +268,13 @@ public class CasePreparationService {
                 existingMotorMap.put(existing.getMotorId(), existing);
             } else {
                 Status newStatus = resolveMotorSubmissionStatus(motorRequest.getMotorSubmissionType());
-                Motor persistedMotor = casePreparationDtoMapper.toPersistence(motorRequest);
+                CasePreparationMotorRequest persistedMotor = casePreparationDtoMapper.toPersistence(motorRequest);
                 persistedMotor.setMotorSubmissionStatus(newStatus);
                 existingMotorMap.put(persistedMotor.getMotorId(), persistedMotor);
             }
         }
 
-        List<Motor> updatedMotors = new ArrayList<>(existingMotorMap.values());
+        List<CasePreparationMotorRequest> updatedMotors = new ArrayList<>(existingMotorMap.values());
 
         // A. Target file set = files on the merged form (all motors), not just the partial payload
         Set<String> targetFileIds = extractMotorListFileIds(updatedMotors);
@@ -305,16 +306,13 @@ public class CasePreparationService {
 
             // 5. Calculate dynamic batch status
             Status batchStatus = calculateBatchStatus(updatedMotors, totalRequiredMotors);
-
-            // 6. Update form details
-            form.setBatchType(request.getBatchType().toUpperCase());
             form.setSubDepartmentId(request.getSubDepartmentId());
             form.setFormSubmissionType(request.getFormSubmissionType());
             form.setStatus(batchStatus);
 
-            CasePreparationDetails details = form.getCasePreparationDetails();
+            CasePreparationDetailsRequest details = form.getCasePreparationDetails();
             if (details == null) {
-                details = new CasePreparationDetails();
+                details = new CasePreparationDetailsRequest();
             }
             details.setMotors(updatedMotors);
             form.setCasePreparationDetails(details);
@@ -361,19 +359,19 @@ public class CasePreparationService {
             long approved = updatedMotors.stream().filter(m -> m.getMotorSubmissionStatus() == Status.APPROVED).count();
             long rejected = updatedMotors.stream().filter(m -> m.getMotorSubmissionStatus() == Status.REJECTED).count();
             long inProgress = updatedMotors.stream().filter(m -> m.getMotorSubmissionStatus() == Status.IN_PROGRESS).count();
-
-            String submittedById = savedForm.getSubmittedBy() != null ? savedForm.getSubmittedBy().getId() : userId;
             LocalDateTime submittedAt =
                     savedForm.getSubmittedAt() != null ? savedForm.getSubmittedAt() : now;
 
             return CasePreparationResponse.builder()
                     .formId(savedForm.getFormId())
                     .batchId(savedForm.getBatchId())
-                    .batchType(savedForm.getBatchType())
                     .subDepartmentId(savedForm.getSubDepartmentId())
                     .formSubmissionType(savedForm.getFormSubmissionType())
                     .status(batchStatus)
-                    .submittedBy(submittedById)
+                    .submittedBy(PersonInfo.builder()
+                            .id(user.getUserId())
+                            .fullName(user.getUsername())
+                            .build())
                     .submittedAt(submittedAt)
                     .updatedBy(userId)
                     .updatedAt(now)
@@ -395,7 +393,7 @@ public class CasePreparationService {
 
     //------------------------------------FORM DETAILS-------------------------------------------------------
 
-    public CasePrepFormDetailsResponse getFormDetails(String formId) {
+    public CasePreparationResponse getFormDetails(String formId) {
 
         CasePreparation form = casePrepRepo.findByFormIdAndIsDeletedFalse(formId)
                 .orElseThrow(() -> new AcemException(
@@ -407,7 +405,7 @@ public class CasePreparationService {
                         ErrorCode.BATCH_NOT_FOUND,
                         "Batch not found"));
 
-        List<Motor> motors = form.getCasePreparationDetails() != null
+        List<CasePreparationMotorRequest> motors = form.getCasePreparationDetails() != null
                 ? form.getCasePreparationDetails().getMotors()
                 : Collections.emptyList();
 
@@ -431,21 +429,20 @@ public class CasePreparationService {
         List<MotorStatusResponse> motorStatuses =
                 buildFullMotorStatuses(batch, motors, batch.getMotorIds());
 
-        CasePreparationDetails details = normalizeCasePreparationDetails(form.getCasePreparationDetails());
+        CasePreparationDetailsRequest details = normalizeCasePreparationDetails(form.getCasePreparationDetails());
         enrichCasePrepMotorFiles(details, form.getSubDepartmentId());
         List<String> discardedMotorIds = BatchMotorDiscardHelper.discardedMotorIds(batch);
         if (details != null && details.getMotors() != null) {
-            for (Motor m : details.getMotors()) {
+            for (CasePreparationMotorRequest m : details.getMotors()) {
                 if (m != null && BatchMotorDiscardHelper.isDiscarded(batch, m.getMotorId())) {
                     m.setMotorSubmissionStatus(Status.DISCARDED);
                 }
             }
         }
 
-        return CasePrepFormDetailsResponse.builder()
+        return CasePreparationResponse.builder()
                 .formId(form.getFormId())
                 .batchId(form.getBatchId())
-                .batchType(form.getBatchType())
                 .subDepartmentId(form.getSubDepartmentId())
                 .formSubmissionType(form.getFormSubmissionType())
                 .status(form.getStatus())
@@ -489,7 +486,7 @@ public class CasePreparationService {
                         ErrorCode.FORM_NOT_FOUND,
                         "Case preparation form not found"));
 
-        Motor motor = form.getCasePreparationDetails()
+        CasePreparationMotorRequest motor = form.getCasePreparationDetails()
                 .getMotors()
                 .stream()
                 .filter(m -> m.getMotorId().equals(request.getMotorId()))
@@ -522,7 +519,7 @@ public class CasePreparationService {
         form.setRejectionReason(request.getRejectionReason());
 
         int totalRequiredMotors = batch.getNumberOfMotors();
-        List<Motor> motors = form.getCasePreparationDetails().getMotors();
+        List<CasePreparationMotorRequest> motors = form.getCasePreparationDetails().getMotors();
 
         // 3. Recalculate Batch/Form level status dynamically
         Status batchStatus = calculateBatchStatus(motors, totalRequiredMotors);
@@ -605,7 +602,7 @@ public class CasePreparationService {
                 .build();
     }
 
-    private Map<String, Object> buildMotorBlockchainPayload(CasePreparation form, Motor motor) {
+    private Map<String, Object> buildMotorBlockchainPayload(CasePreparation form, CasePreparationMotorRequest motor) {
         Map<String, Object> rootPayload = new LinkedHashMap<>();
 
         Map<String, Object> auditMap = new LinkedHashMap<>();
@@ -688,21 +685,21 @@ public class CasePreparationService {
 
     private List<MotorStatusResponse> buildFullMotorStatuses(
             Batch batch,
-            List<Motor> savedMotors,
+            List<CasePreparationMotorRequest> savedMotors,
             List<String> batchMotorIds) {
 
         List<MotorStatusResponse> responseList = new ArrayList<>();
 
-        Map<String, Motor> savedMap = savedMotors != null
+        Map<String, CasePreparationMotorRequest> savedMap = savedMotors != null
                 ? savedMotors.stream()
-                .collect(Collectors.toMap(Motor::getMotorId, Function.identity()))
+                .collect(Collectors.toMap(CasePreparationMotorRequest::getMotorId, Function.identity()))
                 : Collections.emptyMap();
 
         for (String motorId : batchMotorIds) {
 
             if (savedMap.containsKey(motorId)) {
 
-                Motor motor = savedMap.get(motorId);
+                CasePreparationMotorRequest motor = savedMap.get(motorId);
 
                 responseList.add(
                         MotorStatusResponse.builder()
@@ -728,7 +725,7 @@ public class CasePreparationService {
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, responseList);
     }
 
-    private Status calculateBatchStatus(List<Motor> savedMotors, int totalRequiredMotors) {
+    private Status calculateBatchStatus(List<CasePreparationMotorRequest> savedMotors, int totalRequiredMotors) {
 
         if (savedMotors == null || savedMotors.isEmpty()) {
             return Status.TO_BE_INITIATED;
@@ -775,7 +772,7 @@ public class CasePreparationService {
         return Status.TO_BE_INITIATED;
     }
 
-    private boolean hasSubmittedMotor(List<Motor> motors) {
+    private boolean hasSubmittedMotor(List<CasePreparationMotorRequest> motors) {
         return motors != null && motors.stream()
                 .filter(Objects::nonNull)
                 .anyMatch(motor -> motor.getMotorSubmissionType() == Status.SUBMIT);
@@ -850,11 +847,11 @@ public class CasePreparationService {
         }
     }
 
-    private CasePreparationDetails normalizeCasePreparationDetails(CasePreparationDetails details) {
+    private CasePreparationDetailsRequest normalizeCasePreparationDetails(CasePreparationDetailsRequest details) {
         if (details == null || details.getMotors() == null) {
             return details;
         }
-        for (Motor motor : details.getMotors()) {
+        for (CasePreparationMotorRequest motor : details.getMotors()) {
             if (motor != null && motor.getAbradingOperation() != null) {
                 casePreparationAbradingMapper.normalize(motor.getAbradingOperation());
             }
@@ -994,18 +991,18 @@ public class CasePreparationService {
         return null;
     }
 
-    private Set<String> extractMotorListFileIds(List<Motor> motors) {
+    private Set<String> extractMotorListFileIds(List<CasePreparationMotorRequest> motors) {
         Set<String> fileIds = new HashSet<>();
         if (motors == null || motors.isEmpty()) {
             return fileIds;
         }
-        for (Motor motor : motors) {
+        for (CasePreparationMotorRequest motor : motors) {
             fileIds.addAll(extractMotorFileIds(motor));
         }
         return fileIds;
     }
 
-    private Set<String> extractMotorFileIds(Motor motor) {
+    private Set<String> extractMotorFileIds(CasePreparationMotorRequest motor) {
         Set<String> fileIds = new HashSet<>();
         if (motor == null) {
             return fileIds;
@@ -1020,11 +1017,11 @@ public class CasePreparationService {
         return fileIds;
     }
 
-    private void enrichCasePrepMotorFiles(CasePreparationDetails details, Long subDeptId) {
+    private void enrichCasePrepMotorFiles(CasePreparationDetailsRequest details, Long subDeptId) {
         if (details == null || details.getMotors() == null) {
             return;
         }
-        for (Motor motor : details.getMotors()) {
+        for (CasePreparationMotorRequest motor : details.getMotors()) {
             if (motor == null) {
                 continue;
             }

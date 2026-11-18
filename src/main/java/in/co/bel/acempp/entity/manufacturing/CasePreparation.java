@@ -1,7 +1,7 @@
 package in.co.bel.acempp.entity.manufacturing;
 
+import in.co.bel.acempp.dto.casepreparation.CasePreparationDetailsRequest;
 import in.co.bel.acempp.dto.general.PersonInfo;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationDetails;
 import in.co.bel.acempp.enums.Status;
 import lombok.*;
 import org.springframework.data.annotation.Id;
@@ -23,13 +23,11 @@ public class CasePreparation {
     @Indexed(unique = true)                 // one form per batch
     private String batchId;
 
-    private String batchType;               // MAIN_BATCH / SUBSCALE_BATCH
     private Long subDepartmentId;
     private Status formSubmissionType;      // DRAFT / SUBMIT
     private Status status;                  // DRAFT / WAITING_FOR_APPROVAL
 
-    // Strict DTO-backed motor and section details
-    private CasePreparationDetails casePreparationDetails;
+    private CasePreparationDetailsRequest casePreparationDetails;
 
     private PersonInfo submittedBy;
     private LocalDateTime submittedAt;

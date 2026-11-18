@@ -694,16 +694,16 @@ public class QcDivisionService {
                         "Case preparation form not found for batch: " + batchId))
                 .getFormId();
 
-        CasePrepFormDetailsResponse formDetails =
+        CasePreparationResponse formDetails =
                 casePreparationService.getFormDetails(formId);
 
-        Map<String, Motor> motorsById = formDetails.getCasePreparationDetails() != null
+        Map<String, CasePreparationMotorRequest> motorsById = formDetails.getCasePreparationDetails() != null
                 && formDetails.getCasePreparationDetails().getMotors() != null
                 ? formDetails.getCasePreparationDetails().getMotors().stream()
                 .filter(Objects::nonNull)
                 .filter(motor -> motor.getMotorId() != null)
                 .collect(Collectors.toMap(
-                        Motor::getMotorId,
+                        CasePreparationMotorRequest::getMotorId,
                         motor -> motor,
                         (first, ignored) -> first,
                         LinkedHashMap::new))
@@ -722,7 +722,7 @@ public class QcDivisionService {
 
     private Map<String, Object> mapHardwareMotorByApproval(
             MotorStatusResponse motorStatus,
-            Map<String, Motor> motorsById,
+            Map<String, CasePreparationMotorRequest> motorsById,
             String buildingNo,
             Map<String, HardwareProcessValues> processValuesByMotorId) {
 
@@ -737,7 +737,7 @@ public class QcDivisionService {
             return motorData;
         }
 
-        Motor approvedMotor = motorsById.get(motorStatus.getMotorId());
+        CasePreparationMotorRequest approvedMotor = motorsById.get(motorStatus.getMotorId());
         if (approvedMotor == null) {
             throw new AcemException(
                     ErrorCode.INVALID_REQUEST,

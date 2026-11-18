@@ -1,6 +1,7 @@
 package in.co.bel.acempp.service;
 
 import in.co.bel.acempp.dto.batch.*;
+import in.co.bel.acempp.dto.castingcuring.CuringMetadata;
 import in.co.bel.acempp.dto.general.*;
 import in.co.bel.acempp.dto.casepreparation.MotorStatusResponse;
 import in.co.bel.acempp.dto.subscale.SubScaleMetadata;
@@ -24,6 +25,7 @@ import in.co.bel.acempp.enums.RmpFormTemplate;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.exception.AcemException;
 import in.co.bel.acempp.repository.*;
+import in.co.bel.acempp.repository.manufacturing.CuringCycleMasterRepository;
 import in.co.bel.acempp.repository.sourcing.LotRepository;
 import in.co.bel.acempp.repository.sourcing.RocketMotorCasingRepository;
 import in.co.bel.acempp.util.DateTimeConversionUtil;
@@ -82,6 +84,7 @@ public class BatchService {
     private final MixingMetadataResolver mixingMetadataResolver;
     private final QcDivisionStageStatusResolver qcDivisionStatusResolver;
     private final StageProgressDisplayEnricher stageProgressDisplayEnricher;
+    private final CuringCycleMasterRepository curingCycleMasterRepository;
     private final MongoTemplate mongoTemplate;
 
 
@@ -401,7 +404,32 @@ public class BatchService {
         BatchMetadata metadata = (batch.getIdentificationSheet() != null && batch.getIdentificationSheet().getMetadata() != null)
                 ? batch.getIdentificationSheet().getMetadata()
                 : new BatchMetadata();
+        if (metadata.getCuringCycleMaster() == null
+                && batch.getProjectId() != null
+                && batch.getMotorStage() != null) {
 
+            CuringMetadata lateResolvedCuring = resolveBatchCuringCycle(
+                    batch.getProjectId(),
+                    batch.getMotorStage()
+            );
+
+            if (lateResolvedCuring != null) {
+                metadata.setCuringCycleMaster(lateResolvedCuring);
+
+                // Ensure identification sheet & metadata structures exist on batch and persist snapshot
+                if (batch.getIdentificationSheet() == null) {
+                    batch.setIdentificationSheet(new BatchIdentificationSheet());
+                }
+                if (batch.getIdentificationSheet().getMetadata() == null) {
+                    batch.getIdentificationSheet().setMetadata(metadata);
+                } else {
+                    batch.getIdentificationSheet().getMetadata().setCuringCycleMaster(lateResolvedCuring);
+                }
+
+                // Save so the snapshot is locked in permanently going forward
+                batchRepository.save(batch);
+            }
+        }
         SubScaleMetadata approvedSubScale =
                 subscaleMetadataResolver.resolveApprovedMetadata(batch.getBatchId());
         SubScaleMetadata anySubScale =
@@ -1864,5 +1892,36 @@ public class BatchService {
                 null,
                 null,
                 updatedBy);
+    }
+
+    private CuringMetadata resolveBatchCuringCycle(String projectId, Integer motorStage) {
+        if (projectId == null || motorStage == null) {
+            return null;
+        }
+
+        Optional<CuringCycleMaster> masterOpt = curingCycleMasterRepository
+                .findByProjectIdAndMotorStageAndIsActiveTrue(projectId, motorStage);
+
+        if (masterOpt.isEmpty()) {
+            return null;
+        }
+
+        CuringCycleMaster m = masterOpt.get();
+
+        return CuringMetadata.builder()
+                .masterId(m.getId())
+                .curingCycleCode(m.getCuringCycleCode())
+                .curingType(m.getCuringType())
+                .cycles(m.getCycles() == null ? List.of() : m.getCycles().stream()
+                        .filter(step -> Boolean.TRUE.equals(step.getIsActive()))
+                        .sorted(Comparator.comparing(CuringCycleMaster.Cycle::getSequenceNo))
+                        .map(step -> CuringCycleMaster.Cycle.builder() // <-- Use your step DTO/snapshot builder here
+                                .stepId(step.getStepId())
+                                .sequenceNo(step.getSequenceNo())
+                                .temperature(step.getTemperature())
+                                .durationMinutes(step.getDurationMinutes())
+                                .build())
+                        .toList())
+                .build();
     }
 }

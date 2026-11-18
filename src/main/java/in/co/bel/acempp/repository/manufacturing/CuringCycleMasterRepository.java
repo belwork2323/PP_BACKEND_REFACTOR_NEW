@@ -16,4 +16,6 @@ public interface CuringCycleMasterRepository
     Optional<CuringCycleMaster> findByCuringCycleCode(String curingCycleCode);
 
     Optional<CuringCycleMaster> findFirstByCuringTypeAndIsActiveTrue(String curingType);
+
+    Optional<CuringCycleMaster> findByProjectIdAndMotorStageAndIsActiveTrue(String projectId, Integer motorStage);
 }

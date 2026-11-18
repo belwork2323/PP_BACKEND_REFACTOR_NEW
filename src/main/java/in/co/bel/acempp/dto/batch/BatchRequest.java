@@ -5,11 +5,17 @@ import in.co.bel.acempp.validation.groups.CreateGroup;
 import in.co.bel.acempp.validation.groups.UpdateGroup;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
 @Data
+@SuperBuilder
+@AllArgsConstructor
+@NoArgsConstructor
 public class BatchRequest {
     @NotBlank(message = "Batch ID is required", groups = {UpdateGroup.class})
     @Size(max = ValidationConstants.MAX_SHORT, groups = {UpdateGroup.class})

@@ -146,7 +146,7 @@ public class CastingCuringService {
             if (request.getMotors().getFirst().getSetup() != null) {
                 validateMaster.validateCastingStation(request.getMotors().getFirst().getSetup());
             }
-            if (request.getMotors().getFirst().getCuringSetup() != null) {
+            if (request.getMotors().getFirst().getCuringSetup() != null && request.getMotors().getFirst().getCuringSetup().getCuringType() != null ){
                 validateMaster.validateCuringAndOven(request.getMotors().getFirst().getCuringSetup());
             }
             List<CastingCuringMotor> motors = prepareIncomingMotors(request.getMotors(), batch);

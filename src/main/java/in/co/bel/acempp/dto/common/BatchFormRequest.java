@@ -6,9 +6,15 @@ import in.co.bel.acempp.validation.groups.DetailGroup;
 import in.co.bel.acempp.validation.groups.UpdateGroup;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
+@SuperBuilder
+@AllArgsConstructor
+@NoArgsConstructor
 public class BatchFormRequest {
     @NotBlank(message = "Form Id is required", groups = {UpdateGroup.class , DetailGroup.class})
     private String formId;

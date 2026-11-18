@@ -21,7 +21,6 @@ import in.co.bel.acempp.dto.ndt.motor.SignedNdtReportDto;
 import in.co.bel.acempp.dto.rocketmotorcasing.DocumentDto;
 import in.co.bel.acempp.dto.statictestingfacility.StaticMotorData;
 import in.co.bel.acempp.dto.statictestingfacility.StaticMotorDataListDeserializer;
-import in.co.bel.acempp.dto.subscale.subscalecreation.CuringTableDTO;
 import in.co.bel.acempp.dto.subscale.subscalecreation.HardwareArticleSelectionDTO;
 import in.co.bel.acempp.dto.rawmaterialpreparation.AluminumProcessDto;
 import in.co.bel.acempp.dto.rawmaterialpreparation.ApCoarseProcessDto;
@@ -37,11 +36,10 @@ import in.co.bel.acempp.enums.PostCureLocation;
 import in.co.bel.acempp.enums.PostCureOperationType;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.util.DateTimeConversionUtil;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import in.co.bel.acempp.validation.groups.DraftGroup;
+import in.co.bel.acempp.validation.groups.SubmitGroup;
+import jakarta.validation.constraints.Size;
+import lombok.*;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -1139,10 +1137,40 @@ public final class QcDivisionPayloads {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class QcCuringSubscaleDetails {
-        private List<CuringTableDTO> curingTable;
+        private Integer bemAverageShoreAHardness;
+        private Integer cartonAverageShoreAHardness;
+        private LocalDateTime curingEndDateTime;
+        private LocalDateTime curingStartDateTime;
+        private List<QcSubscaleCuringRow> curingTable;
+        private String ovenNumber;
+        private String visualObservations;
         private List<HardwareArticleSelectionDTO> hardwareArticles;
         /** QA section remarks (QC-entered). */
         private String qaRemarks;
+    }
+
+    @Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class QcSubscaleCuringRow {
+        private String articleType;
+        @JsonAlias("bemMouldNo")
+        private String bemNo;
+        private String cartonNo;
+        private String controlGrainNo;
+        private Integer parameter;
+        private String qaRemarks;
+        private String wheelPeelNo;
+        // Retain fields used by existing subscale curing records.
+        private LocalDateTime curingStartDateTime;
+        private LocalDateTime curingEndDateTime;
+        private String ovenNo;
+        private String temperature;
+        private String hardness;
+        private LocalDateTime decoringDateTime;
+        private String decoringLoad;
+        private String grainSurfaceObservations;
     }
 
     @Data
@@ -1395,12 +1423,27 @@ public final class QcDivisionPayloads {
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
         private String parameter;
-        private String specification;
+        private Specification specification;
         private String result;
         /** QA row remarks (QC-entered). */
         private String qaRemarks;
     }
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Specification {
+        @JsonDeserialize(using = BigDecimalValue.class)
+        private BigDecimal min;
+
+        @JsonDeserialize(using = BigDecimalValue.class)
+        private BigDecimal max;
+
+        @Size(max = 50, message = "unit cannot exceed 50 characters", groups = {DraftGroup.class, SubmitGroup.class})
+        @JsonDeserialize(using = StringValue.class)
+        private String unit;
+    }
     @Data
     @lombok.Builder
     @lombok.NoArgsConstructor

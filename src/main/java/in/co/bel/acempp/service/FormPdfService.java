@@ -207,7 +207,7 @@ public class FormPdfService {
             }
 
             case 4 -> {
-                CasePrepFormDetailsResponse data =
+                CasePreparationResponse data =
                         casePreparationService.getFormDetails(req.getFormId());
 
                 addDocHeader(doc, label,
@@ -919,7 +919,7 @@ public class FormPdfService {
 
         PdfPTable summary = createTable(new float[]{25, 25, 25, 25});
         addInfoStripCell(summary, "Batch ID", str(data.getBatchId()));
-        addInfoStripCell(summary, "Created by", workflowStatusLabel(data.getCreatedBy()));
+        addInfoStripCell(summary, "Submitted by", workflowStatusLabel(data.getSubmittedBy().getFullName()));
         addInfoStripCell(summary, "Approved Premixes",
                 data.getApprovedPremixCount() + " / " + data.getTotalPremixCount());
         addInfoStripCell(summary, "Pending / Rejected",
@@ -998,13 +998,13 @@ public class FormPdfService {
             if (ws.getWeightmentDetails() != null && !ws.getWeightmentDetails().isEmpty()) {
                 PdfPTable table = createTable(new float[]{14, 22, 12, 12, 12, 14, 14});
                 addHeaders(table,
-                        "MATERIAL CODE",
-                        "MATERIAL NAME",
-                        "CONTAINER TYPE",
-                        "CONTAINER NO.",
-                        "WEIGH SCALE NO.",
-                        "WEIGHT TRANSFERRED (KG)",
-                        "WEIGHING DATE & TIME");
+                        "Material Code",
+                        "Material Name",
+                        "Container Type",
+                        "Container Number",
+                        "Weigh Scale Number",
+                        "Weight Transferred (kg)",
+                        "Weighing Date & Time");
 
                 boolean alt = false;
                 for (WeightmentDetailRequest w : ws.getWeightmentDetails()) {
@@ -1091,7 +1091,7 @@ public class FormPdfService {
             if (material.getLotDetails() != null && !material.getLotDetails().isEmpty()) {
                 addSection(doc, "Lot Details", "");
                 PdfPTable lotTable = createTable(new float[]{50, 50});
-                addHeaders(lotTable, "QUANTITY", "LOT ID");
+                addHeaders(lotTable, "Quantity", "Lot ID");
                 boolean alt = false;
                 for (LotDetailDto lot : material.getLotDetails()) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1124,7 +1124,7 @@ public class FormPdfService {
             if (blendingParams != null && !blendingParams.isEmpty()) {
                 addSection(doc, "Blending / Drying Parameters", "");
                 PdfPTable table = createTable(new float[]{40, 35, 25});
-                addHeaders(table, "OPERATION", "SET PARAMETER", "ACTUAL PARAMETER");
+                addHeaders(table, "Operation", "Set Parameter", "Actual Parameter");
                 boolean alt = false;
                 for (OperationParameterRowDto row : blendingParams) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1147,8 +1147,8 @@ public class FormPdfService {
             if (dryingOps != null && !dryingOps.isEmpty()) {
                 addSection(doc, "Drying Operation (RVD)", "");
                 PdfPTable table = createTable(new float[]{22, 28, 18, 16, 16});
-                addHeaders(table, "OPERATION", "SET PARAMETER", "ACTUAL PARAMETER",
-                        "START DATE & TIME", "END DATE & TIME");
+                addHeaders(table, "Operation", "Set Parameter", "Actual Parameter",
+                        "Start Date & Time", "End Date & Time");
                 boolean alt = false;
                 for (TimedOperationParameterRowDto row : dryingOps) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1173,7 +1173,7 @@ public class FormPdfService {
             if (psd != null && !psd.isEmpty()) {
                 addSection(doc, "Particle Size Distribution", "");
                 PdfPTable table = createTable(new float[]{45, 30, 25});
-                addHeaders(table, "PSD REQUIREMENT", "SPECIFICATION", "RESULT");
+                addHeaders(table, "PSD Requirement", "Specification", "Result");
                 boolean alt = false;
                 for (ParticleSizeRowDto row : psd) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1195,15 +1195,17 @@ public class FormPdfService {
                 drying = material.getApUltraFine().getDrying();
             }
             if (drying != null) {
-                addSection(doc, "Drying / Tray Oven", "");
-                PdfPTable t = createKeyValueTable();
-                addKV(t, "Oven Type", str(drying.getOvenType()));
-                addKV(t, "Oven Number", str(drying.getOvenNumber()));
-                addKV(t, "Set Temperature", str(drying.getOvenSetTemperature()));
-                addKV(t, "Start", str(drying.getStartDatetime()));
-                addKV(t, "End", str(drying.getEndDatetime()));
-                addKV(t, "Moisture", str(drying.getMoisture()));
-                addKV(t, "Observation", str(drying.getObservation()));
+                addSection(doc, "Drying", "");
+                PdfPTable t = createTable(new float[]{12, 12, 14, 17, 17, 10, 18});
+                addHeaders(t, "Oven Type", "Oven Number", "Set Temperature",
+                        "Start Date & Time", "End Date & Time", "Moisture", "Observation");
+                addCell(t, str(drying.getOvenType()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getOvenNumber()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getOvenSetTemperature()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getStartDatetime()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getEndDatetime()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getMoisture()), BODY_FONT, WHITE);
+                addCell(t, str(drying.getObservation()), BODY_FONT, WHITE);
                 doc.add(t);
                 spacer(doc, 6);
             }
@@ -1218,11 +1220,13 @@ public class FormPdfService {
             }
             if (sieving != null) {
                 addSection(doc, "Sieving", "");
-                PdfPTable t = createKeyValueTable();
-                addKV(t, "Dispatch Date/Time", str(sieving.getSievingDispatchDatetime()));
-                addKV(t, "Sieved Quantity", str(sieving.getSievedQuantity()));
-                addKV(t, "Sieve Mesh Size", str(sieving.getSieveMeshSize()));
-                addKV(t, "Observation", str(sieving.getObservation()));
+                PdfPTable t = createTable(new float[]{26, 22, 20, 32});
+                addHeaders(t, "Dispatch Date & Time", "Sieved Quantity",
+                        "Sieve Mesh Size", "Observation");
+                addCell(t, str(sieving.getSievingDispatchDatetime()), BODY_FONT, WHITE);
+                addCell(t, str(sieving.getSievedQuantity()), BODY_FONT, WHITE);
+                addCell(t, str(sieving.getSieveMeshSize()), BODY_FONT, WHITE);
+                addCell(t, str(sieving.getObservation()), BODY_FONT, WHITE);
                 doc.add(t);
                 spacer(doc, 6);
             }
@@ -1238,8 +1242,8 @@ public class FormPdfService {
                 addKV(t, "Screw Feeder RPM", str(ap.getScrewFeederRpm()));
                 addKV(t, "ID Fan RPM", str(ap.getIdFanRpm()));
                 addKV(t, "Set Pressure", str(ap.getSetPressure()));
-                addKV(t, "Start Date/Time", str(ap.getGrindingStartDatetime()));
-                addKV(t, "End Date/Time", str(ap.getGrindingEndDatetime()));
+                addKV(t, "Start Date & Time", str(ap.getGrindingStartDatetime()));
+                addKV(t, "End Date & Time", str(ap.getGrindingEndDatetime()));
                 addKV(t, "Observation", str(ap.getGrindingObservation()));
                 addKV(t, "Qty. (kg) qualified", str(ap.getQtyKgQualified()));
                 doc.add(t);
@@ -1254,8 +1258,8 @@ public class FormPdfService {
                 addKV(t, "Screw Feeder RPM", str(ap.getScrewFeederRpm()));
                 addKV(t, "Feed Pressure", str(ap.getFeedPressure()));
                 addKV(t, "Grinding Pressure", str(ap.getGrindingPressure()));
-                addKV(t, "Start Date/Time", str(ap.getGrindingStartDatetime()));
-                addKV(t, "End Date/Time", str(ap.getGrindingEndDatetime()));
+                addKV(t, "Start Date & Time", str(ap.getGrindingStartDatetime()));
+                addKV(t, "End Date & Time", str(ap.getGrindingEndDatetime()));
                 addKV(t, "Observation", str(ap.getGrindingObservation()));
                 addKV(t, "Particle Size (6±1μm)", str(ap.getParticleSizeResult()));
                 addKV(t, "Qty. (kg) qualified", str(ap.getQtyKgQualified()));
@@ -1270,11 +1274,11 @@ public class FormPdfService {
                 PdfPTable t = createKeyValueTable();
                 addKV(t, "Equipment Id", str(al.getEquipmentId()));
                 addKV(t, "Set RPM", str(al.getSetRpm()));
-                addKV(t, "Start Date/Time", str(al.getStartDatetime()));
-                addKV(t, "End Date/Time", str(al.getEndDatetime()));
+                addKV(t, "Start Date & Time", str(al.getStartDatetime()));
+                addKV(t, "End Date & Time", str(al.getEndDatetime()));
                 addKV(t, "Observation", str(al.getObservation()));
                 addKV(t, "Qty. (kg) qualified", str(al.getQtyKgQualified()));
-                addKV(t, "Date/Time of dispatch", str(al.getDispatchDatetime()));
+                addKV(t, "Date & Time of dispatch", str(al.getDispatchDatetime()));
                 doc.add(t);
                 spacer(doc, 6);
             }
@@ -1300,7 +1304,7 @@ public class FormPdfService {
                     addKV(t, "Quantity sieved (kg)", str(d.getQuantitySieved()));
                     addKV(t, "Sieve Mesh Size", str(d.getSieveMeshSize()));
                 }
-                addKV(t, "Date/Time of dispatch", str(d.getDispatchDatetime()));
+                addKV(t, "Date & Time of dispatch", str(d.getDispatchDatetime()));
                 addKV(t, "Observation", str(d.getObservation()));
                 addKV(t, "Total Quantity sent for premix", str(d.getTotalQtySentForPremix()));
                 doc.add(t);
@@ -1312,7 +1316,7 @@ public class FormPdfService {
     }
 
     @SuppressWarnings("unchecked")
-    private void renderCasePreparation(Document doc, CasePrepFormDetailsResponse data)
+    private void renderCasePreparation(Document doc, CasePreparationResponse data)
             throws DocumentException {
 
         // ------------------------------------------------------------------
@@ -1321,14 +1325,14 @@ public class FormPdfService {
         addSection(doc, "Case Preparation", "");
 
         PdfPTable summary = createTable(new float[]{25, 25, 25, 25});
-        addInfoStripCell(summary, "Batch Type", str(data.getBatchType()));
-        addInfoStripCell(summary, "Created by", workflowStatusLabel(data.getCreatedBy()));
+        addInfoStripCell(summary, "Batch ID", str(data.getBatchId()));
+        addInfoStripCell(summary, "Submitted by", workflowStatusLabel(data.getSubmittedBy().getFullName()));
         addInfoStripCell(summary, "Approved Motors",
                 data.getApprovedMotorCount() + " / " + data.getTotalMotorCount());
         addInfoStripCell(summary, "Pending / Rejected",
-                data.getPendingMotorCount() + " / " + data.getRejectedMotorCount());
+                str(data.getPendingMotorCount()) + " / " + str(data.getRejectedMotorCount()));
 
-        // Status
+        // Status (coloured)
         PdfPCell statusCell = new PdfPCell();
         statusCell.setColspan(4);
         statusCell.setBorderColor(BORDER_LIGHT);
@@ -1336,14 +1340,17 @@ public class FormPdfService {
         statusCell.setBackgroundColor(ROW_ALT);
         Paragraph sp = new Paragraph();
         sp.add(new Chunk("Form Status: ", BODY_BOLD));
-        sp.add(createStatusPhrase(data.getStatus() != null ? data.getStatus().toString() : "-"));
+        sp.add(new Chunk(
+                workflowStatusLabel(data.getStatus()),
+                new Font(Font.HELVETICA, 8, Font.BOLD,
+                        getStatusColor(str(data.getStatus())))));
         statusCell.addElement(sp);
         summary.addCell(statusCell);
 
         doc.add(summary);
         spacer(doc, 12);
 
-        CasePreparationDetails details = data.getCasePreparationDetails();
+        CasePreparationDetailsRequest details = data.getCasePreparationDetails();
         if (details == null || details.getMotors() == null || details.getMotors().isEmpty()) {
             doc.add(new Paragraph("No case preparation details available.", BODY_FONT));
             return;
@@ -1352,7 +1359,7 @@ public class FormPdfService {
         // ------------------------------------------------------------------
         // 2. MOTORS
         // ------------------------------------------------------------------
-        for (Motor motor : details.getMotors()) {
+        for (CasePreparationMotorRequest motor : details.getMotors()) {
 
             MotorStatusResponse savedMotorStatus = findMotorStatus(
                     data.getMotorStatuses(), motor.getMotorId());
@@ -1364,7 +1371,7 @@ public class FormPdfService {
             Paragraph motorTitle = new Paragraph();
             motorTitle.add(new Chunk("Motor · " + str(motor.getMotorId()) + "   ", SECTION_FONT));
             motorTitle.add(createStatusPhrase(
-                    motorApprovalStatus != null ? motorApprovalStatus.toString() : "-"));
+                    workflowStatusLabel(motorApprovalStatus)));
             motorTitle.setSpacingBefore(10);
             motorTitle.setSpacingAfter(6);
             doc.add(motorTitle);
@@ -1375,10 +1382,6 @@ public class FormPdfService {
                     motor.getPrrcClearanceDate() != null
                             ? motor.getPrrcClearanceDate().format(PDF_DATE_FORMAT)
                             : "-");
-            addKV(meta, "Submission Type",
-                    workflowStatusLabel(savedMotorStatus != null
-                            ? savedMotorStatus.getMotorSubmissionType()
-                            : motor.getMotorSubmissionType()));
             doc.add(meta);
             spacer(doc, 8);
 
@@ -1473,7 +1476,7 @@ public class FormPdfService {
             } else if (first.containsKey("specification")) {
                 // Qualification-style table
                 PdfPTable pdf = createTable(new float[]{8, 35, 27, 30});
-                addHeaders(pdf, "SR.", "PARAMETER", "SPECIFICATION", "RESULT");
+                addHeaders(pdf, "Sr. No.", "Parameter", "Specification", "Result");
                 boolean alt = false;
                 for (Map<String, Object> r : rows) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1488,7 +1491,7 @@ public class FormPdfService {
             } else if (first.containsKey("ingredient") || first.containsKey("mfgLot")) {
                 // Ingredients table (Premix / Final Mix)
                 PdfPTable pdf = createTable(new float[]{8, 22, 20, 15, 15, 20});
-                addHeaders(pdf, "SR.", "INGREDIENT", "MFG LOT", "PARTS BY WT.", "QTY TAKEN", "TOTAL QTY");
+                addHeaders(pdf, "Sr. No.", "Ingredient", "Mfg Lot", "Parts by Wt.", "Qty Taken", "Total Qty");
                 boolean alt = false;
                 for (Map<String, Object> r : rows) {
                     Color bg = alt ? ROW_ALT : WHITE;
@@ -1514,10 +1517,10 @@ public class FormPdfService {
                 PdfPTable pdf = createTable(widths);
 
                 if (hasAttachments) {
-                    addHeaders(pdf, "OPERATION / PARAMETER", "VALUE", "REMARKS", "ATTACHMENTS");
+                    addHeaders(pdf, "Operation / Parameter", "Value", "Remarks", "Attachments");
                 } else {
-                    addHeaders(pdf, "OPERATION / PARAMETER",
-                            first.containsKey("observations") ? "OBSERVATION" : "VALUE", "REMARKS");
+                    addHeaders(pdf, "Operation / Parameter",
+                            first.containsKey("observations") ? "Observation" : "Value", "Remarks");
                 }
 
                 boolean alt = false;
@@ -1658,7 +1661,7 @@ public class FormPdfService {
         String dustWeightLabel = "Dust Weight (in gm) "
                 + (cutName.toLowerCase(Locale.ROOT).contains("second") ? "(B)" : "(A)");
         PdfPTable pdf = createTable(new float[]{8, 21, 21, 20, 12, 18});
-        addHeaders(pdf, "SR.", "Start Date & Time", "End Date & Time",
+        addHeaders(pdf, "Sr. No.", "Start Date & Time", "End Date & Time",
                 dustWeightLabel, "Observations", "Photos / Videos");
 
         boolean alternate = false;
@@ -5485,6 +5488,11 @@ public class FormPdfService {
             String heading,
             List<Map<String, Object>> rows,
             int depth) throws DocumentException {
+        if (isQcAttachmentRows(rows)) {
+            renderQcAttachmentRows(doc, heading, rows, depth);
+            return;
+        }
+
         String headingKey = normalizePdfKey(heading);
         boolean numberedDomainTable = java.util.Set.of(
                         "BELLOWBONDINGDETAILS", "BELLOWREMOVALDETAILS",
@@ -5557,6 +5565,45 @@ public class FormPdfService {
                         doc, "Additional details — row " + (rowIndex + 1), nested, depth + 1);
             }
         }
+    }
+
+    private boolean isQcAttachmentRows(List<Map<String, Object>> rows) {
+        return rows != null && !rows.isEmpty()
+                && rows.stream().allMatch(row -> qcValue(row, "fileId", "fileName") != null
+                        && (row.containsKey("fileId") || row.containsKey("fileName")));
+    }
+
+    /** Keep internal file paths and storage metadata out of the human-readable QC PDF. */
+    private void renderQcAttachmentRows(
+            Document doc,
+            String heading,
+            List<Map<String, Object>> rows,
+            int depth) throws DocumentException {
+        addQcEvaluationHeading(doc, heading, depth);
+        PdfPTable table = createTable(new float[]{78, 22});
+        table.setHeaderRows(1);
+        addHeaders(table, "File Name", "Status");
+        boolean alternate = false;
+        for (Map<String, Object> row : rows) {
+            Color background = alternate ? ROW_ALT : WHITE;
+            Object fileName = qcValue(row, "fileName", "originalFileName", "name");
+            if (fileName == null) {
+                fileName = qcValue(row, "fileUrl");
+            }
+            addCell(table, fileName == null ? "—" : qcAttachmentDisplayName(String.valueOf(fileName)),
+                    BODY_FONT, background);
+            Object status = qcValue(row, "status", "fileStatus", "uploadStatus");
+            addCell(table, status == null ? "—" : str(status), BODY_FONT, background);
+            alternate = !alternate;
+        }
+        doc.add(table);
+    }
+
+    private String qcAttachmentDisplayName(String value) {
+        if (value == null || value.isBlank()) return "—";
+        String normalized = value.replace('\\', '/');
+        int separator = normalized.lastIndexOf('/');
+        return separator >= 0 ? normalized.substring(separator + 1) : normalized;
     }
 
     private void renderQcEvaluationTable(
@@ -5737,10 +5784,10 @@ public class FormPdfService {
             case "UPLOADEDIMAGES", "UPLOADIMAGE" -> "Upload Image";
             case "ACEMBATCHNO", "MFGBATCHLOTNO" -> "Mfg Batch Lot Number";
             case "AGITATORRPM" -> "Agitator Rpm";
-            case "PROCESSDATETIME" -> "Process Datetime";
-            case "STARTDATETIME" -> "Start Datetime";
-            case "ENDDATETIME" -> "End Datetime";
-            case "DISPATCHDATETIME" -> "Dispatch Datetime";
+            case "PROCESSDATETIME" -> "Process Date & Time";
+            case "STARTDATETIME" -> "Start Date & Time";
+            case "ENDDATETIME" -> "End Date & Time";
+            case "DISPATCHDATETIME" -> "Dispatch Date & Time";
             case "TOTALQUANTITYSENTFORPREMIX" -> "Total Quantity Sent For Premix";
             case "QTYOFDUSTGMS", "QUANTITYOFDUST" -> "Qty of Dust (gms)";
             case "OVENNO", "OVENNUMBER" -> "Oven Number";
@@ -6792,8 +6839,8 @@ public class FormPdfService {
         if (details == null) return;
         // Match UI: header fields without a "Test Header" section title.
         PdfPTable table = createTable(new float[]{50, 50});
-        addHeaders(table, "Firing Date/Time", "Amb. Temp.");
-        addCell(table, str(details.getFiringDate()), BODY_FONT, WHITE);
+        addHeaders(table, "Firing Date & Time", "Amb. Temp.");
+        addCell(table, str(details.getFiringDateTime()), BODY_FONT, WHITE);
         addCell(table, str(details.getAmbientTemperature()), BODY_FONT, WHITE);
         doc.add(table);
         addStfQaRemarksStrip(doc, details.getQaRemarks());
@@ -6878,7 +6925,7 @@ public class FormPdfService {
         addHeaders(table, "Loading No.", "Firing No.", "Firing Date/Time", "Temp", "RH", "Wt. of Grain", "Grain Config");
         addCell(table, str(details.getLoadingNo()), BODY_FONT, WHITE);
         addCell(table, str(details.getFiringNo()), BODY_FONT, WHITE);
-        addCell(table, str(details.getFiringDate()), BODY_FONT, WHITE);
+        addCell(table, str(details.getFiringDateTime()), BODY_FONT, WHITE);
         addCell(table, str(details.getTemperature()), BODY_FONT, WHITE);
         addCell(table, str(details.getRh()), BODY_FONT, WHITE);
         addCell(table, str(details.getWtOfGrain()), BODY_FONT, WHITE);

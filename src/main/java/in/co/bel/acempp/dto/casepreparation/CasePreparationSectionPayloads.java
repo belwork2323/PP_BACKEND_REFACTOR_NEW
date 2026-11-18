@@ -8,7 +8,11 @@ import in.co.bel.acempp.dto.common.StrictScalarDeserializers.BigDecimalValue;
 import in.co.bel.acempp.dto.common.StrictScalarDeserializers.IntegerValue;
 import in.co.bel.acempp.dto.rocketmotorcasing.DocumentDto;
 import in.co.bel.acempp.enums.CasingType;
+import in.co.bel.acempp.validation.ValidationConstants;
+import in.co.bel.acempp.validation.groups.SubmitGroup;
+import in.co.bel.acempp.validation.groups.DraftGroup;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,13 +34,20 @@ public final class CasePreparationSectionPayloads {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AbradingOperation {
+        @NotNull(message = "Type of Casing is required", groups = {SubmitGroup.class})
         private CasingType typeOfCasing;
+
+        @NotBlank(message = "Type of Insulation is required", groups = {SubmitGroup.class})
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String typeOfInsulation;
+
+        @NotBlank(message = "Abrading Wheel Type is required", groups = {SubmitGroup.class})
+        @Pattern(regexp = ValidationConstants.OPTIONAL_BUSINESS_TEXT_PATTERN)
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String abradingWheelType;
+
         private List<@Valid AbradingCutRow> firstCut;
         private List<@Valid AbradingCutRow> secondCut;
-
-        /** Legacy Mongo shape; deserialized on read only, never returned in API responses. */
         @JsonProperty(value = "abradingDetails", access = Access.WRITE_ONLY)
         private List<AbradingDetail> abradingDetails;
     }
@@ -54,9 +65,13 @@ public final class CasePreparationSectionPayloads {
         @JsonAlias({"endTime", "endDatetime", "toTime"})
         @Field("endTime")
         private LocalDateTime endDateTime;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String dustQty;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String observations;
-        private List<DocumentDto> attachments;
+        private List<@Valid DocumentDto> attachments;
     }
 
     @Data
@@ -67,9 +82,18 @@ public final class CasePreparationSectionPayloads {
         @JsonProperty("SR_NO")
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String operation;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String value;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String remarksObservations;
+        @NotNull(message = "Attachments list is required", groups = {SubmitGroup.class, DraftGroup.class})
+        @NotEmpty(message = "At least one attachment must be provided", groups = {SubmitGroup.class, DraftGroup.class})
+        @Valid
         private List<DocumentDto> attachments;
     }
 
@@ -78,14 +102,32 @@ public final class CasePreparationSectionPayloads {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BellowBonding {
+        @Size(max = ValidationConstants.MAX_LONG_TEXT)
         private String adhesiveDetails;
+
+        @NotBlank(message = "HE Bellow Dimension is required", groups = {SubmitGroup.class})
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String heBellowDimension;
+
+        @NotNull(message = "HE Motor Pasting Date & Time is required", groups = {SubmitGroup.class})
         private LocalDateTime heMotorPastingDateTime;
+
+        @NotBlank(message = "NE Bellow Dimension is required", groups = {SubmitGroup.class})
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String neBellowDimension;
+
+        @NotNull(message = "NE Motor Pasting Date & Time is required", groups = {SubmitGroup.class})
         private LocalDateTime neMotorPastingDateTime;
-        @JsonDeserialize(using = IntegerValue.class)
+
+        @NotNull(message = "Number of Spacers is required", groups = {SubmitGroup.class})
+        @DecimalMin(value = "0")
         private Integer numberOfSpacers;
+
+        @Size(max = ValidationConstants.MAX_LONG_TEXT)
         private String pastingDetails;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String remarks;
     }
 
@@ -94,10 +136,20 @@ public final class CasePreparationSectionPayloads {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TceCleaning {
+        @NotNull(message = "TCE Cleaning Date & Time is required", groups = {SubmitGroup.class})
         private LocalDateTime tceCleaningDateTime;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @NotNull(message = "Solvent Used Qty is required", groups = {SubmitGroup.class})
+        @DecimalMin(value = "0.0")
+        @Digits(integer = 10, fraction = 3)
         private BigDecimal solventUsedQtyKg;
+
+        @NotBlank(message = "Observation is required", groups = {SubmitGroup.class})
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String observation;
+
+        @Valid
         private DocumentDto testReport;
     }
 
@@ -107,12 +159,25 @@ public final class CasePreparationSectionPayloads {
     @AllArgsConstructor
     public static class PreHeating {
         private LocalDateTime preHeatingDateTime;
+
+        @NotBlank(message = "Vacuum Bagging Applied is required", groups = {SubmitGroup.class})
         private String vacuumBaggingApplied;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @DecimalMin(value = "0.0")
+        @DecimalMax(value = "760.0")
+        @Digits(integer = 3, fraction = 3)
         private BigDecimal vacuumApplied;
+
+        @NotBlank(message = "Pre-heating Recipe is required", groups = {SubmitGroup.class})
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String preHeatingRecipe;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String otherDuration;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String otherTemperature;
+
         private List<@Valid ParameterValueRow> temperatureDuration;
         private List<@Valid ParameterValueRow> preHeatingMonitoring;
     }
@@ -125,8 +190,16 @@ public final class CasePreparationSectionPayloads {
         @JsonProperty("SR_NO")
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
+        @NotBlank(message = "parameter is required", groups = {SubmitGroup.class})
         private String parameter;
+
+        @Size(max = ValidationConstants.MAX_LONG_TEXT)
+        @NotBlank(message = "value is required", groups = {SubmitGroup.class})
         private String value;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String remarks;
     }
 
@@ -136,15 +209,31 @@ public final class CasePreparationSectionPayloads {
     @AllArgsConstructor
     public static class LinerCoatingOperation {
         private LocalDateTime linerCoatingDateTime;
+
+        @NotBlank(message = "Liner Type is required", groups = {SubmitGroup.class})
         private String linerType;
+
+        @NotBlank(message = "Batch No is required", groups = {SubmitGroup.class})
+        @Pattern(regexp = ValidationConstants.OPTIONAL_BUSINESS_TEXT_PATTERN)
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String batchNo;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @DecimalMin(value = "0.0")
+        @Digits(integer = 10, fraction = 3)
         private BigDecimal batchSize;
+
         private List<@Valid Ingredient> premixIngredients;
         private List<@Valid Ingredient> finalMixIngredients;
+
+        @NotBlank(message = "Qualifying Subscale Batch No is required", groups = {SubmitGroup.class})
+        @Pattern(regexp = ValidationConstants.OPTIONAL_BUSINESS_TEXT_PATTERN)
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String qualifyingSubscaleBatchNo;
+
         private List<@Valid QualificationParameter> qualificationParameters;
         private List<@Valid ParameterValueRow> linerApplicationLog;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String rh;
     }
 
@@ -155,14 +244,26 @@ public final class CasePreparationSectionPayloads {
     public static class Ingredient {
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String materialName;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String ingredient;
+
+        @Pattern(regexp = ValidationConstants.OPTIONAL_BUSINESS_TEXT_PATTERN)
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String mfgLot;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @DecimalMin(value = "0.0")
+        @Digits(integer = 10, fraction = 3)
         private BigDecimal partsByWeight;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @DecimalMin(value = "0.0")
+        @Digits(integer = 10, fraction = 3)
         private BigDecimal quantityTaken;
-        @JsonDeserialize(using = BigDecimalValue.class)
+
+        @DecimalMin(value = "0.0")
+        @Digits(integer = 10, fraction = 3)
         private BigDecimal totalQuantity;
     }
 
@@ -173,8 +274,14 @@ public final class CasePreparationSectionPayloads {
     public static class QualificationParameter {
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String parameter;
+
+        @Size(max = ValidationConstants.MAX_LONG_TEXT)
         private String specification;
+
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
+        @NotBlank(message = "result is required", groups = {SubmitGroup.class})
         private String result;
     }
 
@@ -195,8 +302,16 @@ public final class CasePreparationSectionPayloads {
         @JsonProperty("SR_NO")
         @JsonDeserialize(using = IntegerValue.class)
         private Integer srNo;
+        @Size(max = ValidationConstants.STANDARD_TEXT_MAX)
         private String parameter;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
+        @NotBlank(message = "observations is required", groups = {SubmitGroup.class})
         private String observations;
+
+        @Pattern(regexp = "^$|" + ValidationConstants.ALPHABET_WITH_SPECIAL)
+        @Size(max = ValidationConstants.REMARKS_OBSERVATIONS_MAX)
         private String remarks;
     }
 }

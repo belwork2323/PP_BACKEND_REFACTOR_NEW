@@ -1,13 +1,10 @@
 package in.co.bel.acempp.dto.casepreparation;
 
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingOperation;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.BellowBonding;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.DispatchToCasting;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.LinerCoatingOperation;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.PreHeating;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.TceCleaning;
+import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.*;
 import in.co.bel.acempp.enums.Status;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,13 +17,23 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CasePreparationMotorRequest {
+    @NotBlank(message = "Motor ID is required")
     private String motorId;
+
+    @NotNull(message = "PRRC Clearance Date is required")
     private LocalDate prrcClearanceDate;
     private Status motorSubmissionType;
-    @Valid private AbradingOperation abradingOperation;
-    @Valid private BellowBonding bellowBonding;
-    @Valid private TceCleaning tceCleaning;
-    @Valid private PreHeating preHeating;
-    @Valid private LinerCoatingOperation linerCoatingOperation;
-    @Valid private DispatchToCasting dispatchToCasting;
+    private Status motorSubmissionStatus;
+    @Valid
+    private AbradingOperation abradingOperation;
+    @Valid
+    private BellowBonding bellowBonding;
+    @Valid
+    private TceCleaning tceCleaning;
+    @Valid
+    private PreHeating preHeating;
+    @Valid
+    private LinerCoatingOperation linerCoatingOperation;
+    @Valid
+    private DispatchToCasting dispatchToCasting;
 }

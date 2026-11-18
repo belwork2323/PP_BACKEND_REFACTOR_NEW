@@ -120,25 +120,27 @@ public class ValidateMaster {
                 || curingSetup.getOvenNo() == null) {
             return;
         }
+        if (!curingSetup.getCuringType().isEmpty()) {
+            CuringCycleMaster curingMaster = curingCycleMasterRepository
+                    .findFirstByCuringTypeAndIsActiveTrue(curingSetup.getCuringType())
+                    .orElseThrow(() -> new AcemException(
+                            ErrorCode.INVALID_REQUEST,
+                            "Invalid or inactive curing type: " + curingSetup.getCuringType()
+                    ));
 
-        CuringCycleMaster curingMaster = curingCycleMasterRepository
-                .findFirstByCuringTypeAndIsActiveTrue(curingSetup.getCuringType())
-                .orElseThrow(() -> new AcemException(
-                        ErrorCode.INVALID_REQUEST,
-                        "Invalid or inactive curing type: " + curingSetup.getCuringType()
-                ));
+            // Resolve oven from OvenMaster using code or name
+            OvenMaster ovenMaster = ovenMasterRepository
+                    .findByCodeAndIsActiveTrue(curingSetup.getOven())
+                    .or(() -> ovenMasterRepository.findByNameAndIsActiveTrue(
+                            curingSetup.getOven()))
+                    .orElseThrow(() -> new AcemException(
+                            ErrorCode.INVALID_REQUEST,
+                            "Invalid or inactive oven: " + curingSetup.getOven()
+                    ));
 
-        // Resolve oven from OvenMaster using code or name
-        OvenMaster ovenMaster = ovenMasterRepository
-                .findByCodeAndIsActiveTrue(curingSetup.getOven())
-                .or(() -> ovenMasterRepository.findByNameAndIsActiveTrue(
-                        curingSetup.getOven()))
-                .orElseThrow(() -> new AcemException(
-                        ErrorCode.INVALID_REQUEST,
-                        "Invalid or inactive oven: " + curingSetup.getOven()
-                ));
+            curingSetup.setCuringType(curingMaster.getCuringType());
+            curingSetup.setOven(ovenMaster.getName());
+        }
 
-        curingSetup.setCuringType(curingMaster.getCuringType());
-        curingSetup.setOven(ovenMaster.getName());
     }
 }

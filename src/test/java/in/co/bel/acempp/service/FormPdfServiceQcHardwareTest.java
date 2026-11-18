@@ -7,9 +7,9 @@ import com.lowagie.text.PageSize;
 import com.lowagie.text.pdf.PdfReader;
 import com.lowagie.text.pdf.PdfWriter;
 import com.lowagie.text.pdf.parser.PdfTextExtractor;
-import in.co.bel.acempp.dto.casepreparation.CasePrepFormDetailsResponse;
-import in.co.bel.acempp.dto.casepreparation.CasePreparationDetails;
-import in.co.bel.acempp.dto.casepreparation.Motor;
+import in.co.bel.acempp.dto.casepreparation.CasePreparationDetailsRequest;
+import in.co.bel.acempp.dto.casepreparation.CasePreparationMotorRequest;
+import in.co.bel.acempp.dto.casepreparation.CasePreparationResponse;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingCutRow;
 import in.co.bel.acempp.dto.casepreparation.CasePreparationSectionPayloads.AbradingOperation;
 import in.co.bel.acempp.dto.form.FormPdfRequest;
@@ -123,7 +123,7 @@ class FormPdfServiceQcHardwareTest {
                         .registerModule(new JavaTimeModule())
                         .registerModule(new JacksonDateTimeConfig().flexibleDateInputModule()),
                 null, null, null);
-        Motor motor = Motor.builder()
+        CasePreparationMotorRequest motor = CasePreparationMotorRequest.builder()
                 .motorId("RMC-2026-27-001")
                 .abradingOperation(AbradingOperation.builder()
                         .firstCut(List.of(AbradingCutRow.builder()
@@ -136,9 +136,9 @@ class FormPdfServiceQcHardwareTest {
                                 .build()))
                         .build())
                 .build();
-        CasePrepFormDetailsResponse details = CasePrepFormDetailsResponse.builder()
+        CasePreparationResponse details = CasePreparationResponse.builder()
                 .batchId("ACEM/2610/0034")
-                .casePreparationDetails(CasePreparationDetails.builder()
+                .casePreparationDetails(CasePreparationDetailsRequest.builder()
                         .motors(List.of(motor))
                         .build())
                 .build();

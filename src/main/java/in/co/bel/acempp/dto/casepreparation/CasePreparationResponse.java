@@ -1,42 +1,44 @@
 package in.co.bel.acempp.dto.casepreparation;
 
+import in.co.bel.acempp.dto.batch.BatchRequest;
+import in.co.bel.acempp.dto.general.PersonInfo;
 import in.co.bel.acempp.enums.Status;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CasePreparationResponse {
+public class CasePreparationResponse extends CreateCasePreparationRequest {
 
-    private String formId;
-    private String batchId;
     private String batchType;
-    private Long subDepartmentId;
-
-    private Status formSubmissionType;
     private Status status;
+    private Boolean allMotorsApproved;
 
-    private String submittedBy;
+    // Audit info (using PersonInfo for richer detail, or String if preferred)
+    private PersonInfo submittedBy;
     private LocalDateTime submittedAt;
-
-
+    private String createdBy;
+    private LocalDateTime createdAt;
     private String updatedBy;
     private LocalDateTime updatedAt;
 
-    // Motor Summary
+    // Motor Summary Counts
     private int pendingMotorCount;
     private int approvedMotorCount;
     private int rejectedMotorCount;
     private int inProgressMotorCount;
     private int totalMotorCount;
 
-    // Individual Motor Statuses
+    // Lists
     private List<MotorStatusResponse> motorStatuses;
+    private List<String> discardedMotorIds;
 
-    private CasePreparationDetails casePreparationDetails;
-}
+    private CasePreparationDetailsRequest casePreparationDetails;
+
+  }
