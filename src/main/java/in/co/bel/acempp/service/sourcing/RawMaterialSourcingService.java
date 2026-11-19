@@ -55,6 +55,7 @@ public class RawMaterialSourcingService {
 
         // Aggregate ALL field errors (tier + format + prep + duplicate lot) before persist.
         Map<String, String> createFieldErrors = new LinkedHashMap<>();
+        Set<String> seenLotIds = new HashSet<>();
         for (int materialIndex = 0; materialIndex < request.getMaterials().size(); materialIndex++) {
             MaterialRequest materialReq = request.getMaterials().get(materialIndex);
             String materialPrefix = "materials[" + materialIndex + "]";
@@ -96,14 +97,21 @@ public class RawMaterialSourcingService {
             for (int lotIndex = 0; lotIndex < materialReq.getLots().size(); lotIndex++) {
                 LotRequest lotReq = materialReq.getLots().get(lotIndex);
                 String lotPrefix = materialPrefix + ".lots[" + lotIndex + "]";
-                if (lotReq != null && !validationSupport.isBlank(lotReq.getLotId())
-                        && lotRepository.existsByLotId(lotReq.getLotId())) {
-                    createFieldErrors.put(
-                            lotPrefix + ".lotId",
-                            "Lot ID already exists: " + lotReq.getLotId());
-                }
                 if (lotReq == null) {
                     continue;
+                }
+                String trimmedLotId = lotReq.getLotId() == null ? "" : lotReq.getLotId().trim();
+                if (!trimmedLotId.isEmpty()) {
+                    lotReq.setLotId(trimmedLotId);
+                    if (!seenLotIds.add(trimmedLotId)) {
+                        createFieldErrors.put(
+                                lotPrefix + ".lotId",
+                                "Duplicate Lot ID in request: " + trimmedLotId);
+                    } else if (lotRepository.existsByLotId(trimmedLotId)) {
+                        createFieldErrors.put(
+                                lotPrefix + ".lotId",
+                                "Lot ID already exists: " + trimmedLotId);
+                    }
                 }
                 validationSupport.validateLotSpecificationFormats(
                         lotReq.getSpecifications(),
@@ -190,12 +198,14 @@ public class RawMaterialSourcingService {
 
                 for (int lotIndex = 0; lotIndex < materialReq.getLots().size(); lotIndex++) {
                     LotRequest lotReq = materialReq.getLots().get(lotIndex);
+                    String lotId = lotReq.getLotId() == null ? "" : lotReq.getLotId().trim();
+                    lotReq.setLotId(lotId);
 
                     // Duplicate / format / prep already validated above — fail closed if race.
-                    if (lotRepository.existsByLotId(lotReq.getLotId())) {
+                    if (lotRepository.existsByLotId(lotId)) {
                         throw new AcemException(
                                 ErrorCode.DUPLICATE_LOT,
-                                "Lot ID already exists: " + lotReq.getLotId()
+                                "Lot ID already exists: " + lotId
                         );
                     }
 
@@ -206,11 +216,11 @@ public class RawMaterialSourcingService {
                             lotReq.getCertificates(),
                             request.getSubDepartmentId(),
                             sourcingId,
-                            lotReq.getLotId(),
+                            lotId,
                             promotedFileIds);
 
                     Lot lot = Lot.builder()
-                            .lotId(lotReq.getLotId())
+                            .lotId(lotId)
                             .sourcingId(sourcingId)
                             .subDepartmentId(request.getSubDepartmentId())
                             .materialCode(material.getMaterialCode())
@@ -243,10 +253,14 @@ public class RawMaterialSourcingService {
                     .build();
 
         } catch (Exception ex) {
-            log.error("Failed to create RMP form for sourcingId={}. Rolling back promoted files...", sourcingId, ex);
+            log.error(
+                    "Failed to create RMP form for sourcingId={}. Rolling back promoted files and orphaned records...",
+                    sourcingId,
+                    ex);
 
             // Rollback all promoted files in case of failure
             certificateSupport.rollbackPromotedFiles(promotedFileIds);
+            rollbackPartialCreate(sourcingId);
 
             if (ex instanceof AcemException acemEx) {
                 throw acemEx;
@@ -255,6 +269,22 @@ public class RawMaterialSourcingService {
                     ErrorCode.INTERNAL_SERVER_ERROR,
                     "Failed to create RMP form. Uploaded files have been rolled back: " + ex.getMessage()
             );
+        }
+    }
+
+    /** Best-effort cleanup when create fails after Sourcing/Lot writes (Mongo txn may not roll back). */
+    private void rollbackPartialCreate(String sourcingId) {
+        if (validationSupport.isBlank(sourcingId)) {
+            return;
+        }
+        try {
+            List<Lot> partialLots = lotRepository.findBySourcingId(sourcingId);
+            if (partialLots != null && !partialLots.isEmpty()) {
+                lotRepository.deleteAll(partialLots);
+            }
+            sourcingRepository.findBySourcingId(sourcingId).ifPresent(sourcingRepository::delete);
+        } catch (Exception cleanupEx) {
+            log.error("Failed to roll back partial RMP create for sourcingId={}", sourcingId, cleanupEx);
         }
     }
 

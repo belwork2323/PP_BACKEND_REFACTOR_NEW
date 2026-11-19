@@ -32,6 +32,8 @@ import in.co.bel.acempp.dto.statictestingfacility.StaticMotorData;
 import in.co.bel.acempp.dto.statictestingfacility.StfPayloads.*;
 import in.co.bel.acempp.dto.statictestingfacility.StfDetailsResponse;
 import in.co.bel.acempp.dto.rawmaterialsourcing.*;
+import in.co.bel.acempp.dto.rawmaterialsourcing.preparation.AdductPreparationDetails;
+import in.co.bel.acempp.dto.rawmaterialsourcing.preparation.HtpbBlendingPreparationDetails;
 import in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments.*;
 import in.co.bel.acempp.dto.rocketmotorcasing.*;
 import in.co.bel.acempp.dto.trimming.trimmingcreation.*;
@@ -40,6 +42,7 @@ import in.co.bel.acempp.dto.user.operations.SpecificationRangeDto;
 import in.co.bel.acempp.entity.qualitycontrol.BemMotor;
 import in.co.bel.acempp.entity.sourcing.Lot;
 import in.co.bel.acempp.enums.ErrorCode;
+import in.co.bel.acempp.enums.PreparationType;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.exception.AcemException;
 import in.co.bel.acempp.repository.qualitycontrol.BemMotorRepository;
@@ -378,7 +381,12 @@ public class FormPdfService {
         spacer(doc, 8);
 
         // ------------------------------------------------------------------
-        // 2. MATERIAL SPECIFICATIONS TABLE
+        // 2. ADDUCT / HTPB PREPARATION DETAILS
+        // ------------------------------------------------------------------
+        renderRmpPreparationDetails(doc, data);
+
+        // ------------------------------------------------------------------
+        // 3. MATERIAL SPECIFICATIONS TABLE
         // ------------------------------------------------------------------
         List<SpecificationResponse> specs = data.getSpecifications();
         if (specs != null && !specs.isEmpty()) {
@@ -435,7 +443,7 @@ public class FormPdfService {
         }
 
         // ------------------------------------------------------------------
-        // 3. CERTIFICATES & ATTACHMENTS
+        // 4. CERTIFICATES & ATTACHMENTS
         // ------------------------------------------------------------------
         List<CertificateResponse> certs = data.getCertificates();
         if (certs != null && !certs.isEmpty()) {
@@ -454,6 +462,59 @@ public class FormPdfService {
             doc.add(certTable);
         }
     }
+
+    /** Renders ACEM adduct / HTPB blending preparation sections when present on the lot. */
+    private void renderRmpPreparationDetails(Document doc, LotDetailsResponse data)
+            throws DocumentException {
+        PreparationType preparationType = data.getPreparationType();
+        AdductPreparationDetails adduct = data.getAdductPreparation();
+        HtpbBlendingPreparationDetails htpb = data.getHtpbBlendingPreparation();
+
+        boolean showAdduct = adduct != null
+                && (preparationType == null || preparationType == PreparationType.ADDUCT);
+        boolean showHtpb = htpb != null
+                && (preparationType == null || preparationType == PreparationType.HTPB_BLENDING);
+
+        if (!showAdduct && !showHtpb) {
+            return;
+        }
+
+        if (showAdduct) {
+            addSection(doc, "Adduct preparation details", "");
+            PdfPTable table = createKeyValueTable();
+            addKV(table, "Date of preparation of ADDUCT batch", str(adduct.getAdductBatchPrepDate()));
+            addKV(table, "Mfg / Lot no of TMP used", str(adduct.getTmpMfgLotNo()));
+            addKV(table, "Total Qty (gm) of TMP used", str(adduct.getTmpTotalQtyGm()));
+            addKV(table, "Mfg / Lot no of nBD used", str(adduct.getNbdMfgLotNo()));
+            addKV(table, "Total Qty (gm) of nBD used", str(adduct.getNbdTotalQtyGm()));
+            addKV(table, "RPM", str(adduct.getRpm()));
+            addKV(table, "Process temp", str(adduct.getProcessTemp()));
+            addKV(table, "Jacket temp", str(adduct.getJacketTemp()));
+            addKV(table, "Process start time", str(adduct.getProcessStartTime()));
+            addKV(table, "Process end time", str(adduct.getProcessEndTime()));
+            addKV(table, "Final quantity of adduct preparation", str(adduct.getFinalAdductQty()));
+            addKV(table, "Date & Time Of Dispatch", str(adduct.getDispatchDateTime()));
+            doc.add(table);
+            spacer(doc, 10);
+        }
+
+        if (showHtpb) {
+            addSection(doc, "HTPB blending preparation details", "");
+            PdfPTable table = createKeyValueTable();
+            addKV(table, "Mfg / Batch lot no", str(htpb.getMfgBatchLotNo()));
+            addKV(table, "Total qty", str(htpb.getTotalQty()));
+            addKV(table, "Equipment id", str(htpb.getEquipmentId()));
+            addKV(table, "Agitator RPM", str(htpb.getAgitatorRpm()));
+            addKV(table, "Process temp", str(htpb.getProcessTemp()));
+            addKV(table, "Jacket temp", str(htpb.getJacketTemp()));
+            addKV(table, "Start date & time", str(htpb.getProcessStartTime()));
+            addKV(table, "End date & time", str(htpb.getProcessEndTime()));
+            addKV(table, "Any other observation", str(htpb.getOtherObservations()));
+            doc.add(table);
+            spacer(doc, 10);
+        }
+    }
+
     // ═════════════════════════════════════════════════════════════
     // 112 — ROCKET MOTOR CASING
     // ═════════════════════════════════════════════════════════════
