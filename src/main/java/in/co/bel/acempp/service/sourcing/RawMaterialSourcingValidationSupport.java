@@ -48,9 +48,9 @@ public class RawMaterialSourcingValidationSupport {
             return;
         }
 
-        SpecResultFormatValidator.validateAlphaNumField(
+        SpecResultFormatValidator.validateShortTextField(
                 material.getManufacturerName(), p + "manufacturerName", true, errors);
-        SpecResultFormatValidator.validateAlphaNumField(
+        SpecResultFormatValidator.validateCodeRefField(
                 material.getSupplyOrderNo(), p + "supplyOrderNo", false, errors);
         if (material.getLots() == null || material.getLots().isEmpty()) {
             errors.put(p + "lots", "lots list cannot be empty");
@@ -63,9 +63,9 @@ public class RawMaterialSourcingValidationSupport {
     }
 
     void collectUpdateLotForTierErrors(UpdateLotRequest request, Map<String, String> errors) {
-        SpecResultFormatValidator.validateAlphaNumField(
+        SpecResultFormatValidator.validateShortTextField(
                 request.getManufacturerName(), "manufacturerName", true, errors);
-        SpecResultFormatValidator.validateAlphaNumField(
+        SpecResultFormatValidator.validateCodeRefField(
                 request.getSupplyOrderNo(), "supplyOrderNo", false, errors);
         LotRequest lotShape = LotRequest.builder()
                 .lotId(request.getLotId())
@@ -165,14 +165,15 @@ public class RawMaterialSourcingValidationSupport {
             Status submissionType,
             String prefix,
             Map<String, String> errors) {
-        if (!isSubmitIntent(submissionType)) {
-            return;
-        }
+        boolean required = isSubmitIntent(submissionType);
         if (adductPreparation == null) {
-            errors.put(prefix + ".adductPreparation", "adductPreparation is required");
+            if (required) {
+                errors.put(prefix + ".adductPreparation", "adductPreparation is required");
+            }
             return;
         }
-        validateAdductPreparationFields(adductPreparation, prefix + ".adductPreparation", errors);
+        validateAdductPreparationFields(
+                adductPreparation, prefix + ".adductPreparation", required, errors);
     }
 
     void validateBlendingStylePreparation(
@@ -181,53 +182,48 @@ public class RawMaterialSourcingValidationSupport {
             Status submissionType,
             String prefix,
             Map<String, String> errors) {
-        if (!isSubmitIntent(submissionType)) {
-            return;
-        }
+        boolean required = isSubmitIntent(submissionType);
         if (preparationDetails == null) {
-            errors.put(prefix + "." + fieldName, fieldName + " is required");
+            if (required) {
+                errors.put(prefix + "." + fieldName, fieldName + " is required");
+            }
             return;
         }
         validateBlendingStylePreparationFields(
-                preparationDetails, prefix + "." + fieldName, errors);
+                preparationDetails, prefix + "." + fieldName, required, errors);
     }
 
     void validateAdductPreparationFields(
             AdductPreparationDetails details,
             String prefix,
+            boolean required,
             Map<String, String> errors) {
-        if (isBlank(details.getAdductBatchPrepDate())) {
+        if (required && isBlank(details.getAdductBatchPrepDate())) {
             errors.put(prefix + ".adductBatchPrepDate", "adductBatchPrepDate is required");
         }
-        SpecResultFormatValidator.validateAlphaNumField(
-                details.getTmpMfgLotNo(), prefix + ".tmpMfgLotNo", true, errors);
-        if (details.getTmpTotalQtyGm() == null) {
-            errors.put(prefix + ".tmpTotalQtyGm", "tmpTotalQtyGm is required");
-        }
-        SpecResultFormatValidator.validateAlphaNumField(
-                details.getNbdMfgLotNo(), prefix + ".nbdMfgLotNo", true, errors);
-        if (details.getNbdTotalQtyGm() == null) {
-            errors.put(prefix + ".nbdTotalQtyGm", "nbdTotalQtyGm is required");
-        }
-        if (details.getRpm() == null) {
-            errors.put(prefix + ".rpm", "rpm is required");
-        }
-        if (details.getProcessTemp() == null) {
-            errors.put(prefix + ".processTemp", "processTemp is required");
-        }
-        if (details.getJacketTemp() == null) {
-            errors.put(prefix + ".jacketTemp", "jacketTemp is required");
-        }
-        if (isBlank(details.getProcessStartTime())) {
+        SpecResultFormatValidator.validateCodeRefField(
+                details.getTmpMfgLotNo(), prefix + ".tmpMfgLotNo", required, errors);
+        SpecResultFormatValidator.validatePositiveDecimalString(
+                details.getTmpTotalQtyGm(), prefix + ".tmpTotalQtyGm", required, errors);
+        SpecResultFormatValidator.validateCodeRefField(
+                details.getNbdMfgLotNo(), prefix + ".nbdMfgLotNo", required, errors);
+        SpecResultFormatValidator.validatePositiveDecimalString(
+                details.getNbdTotalQtyGm(), prefix + ".nbdTotalQtyGm", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getRpm(), prefix + ".rpm", "rpm", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getProcessTemp(), prefix + ".processTemp", "processTemp", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getJacketTemp(), prefix + ".jacketTemp", "jacketTemp", required, errors);
+        if (required && isBlank(details.getProcessStartTime())) {
             errors.put(prefix + ".processStartTime", "processStartTime is required");
         }
-        if (isBlank(details.getProcessEndTime())) {
+        if (required && isBlank(details.getProcessEndTime())) {
             errors.put(prefix + ".processEndTime", "processEndTime is required");
         }
-        if (details.getFinalAdductQty() == null) {
-            errors.put(prefix + ".finalAdductQty", "finalAdductQty is required");
-        }
-        if (isBlank(details.getDispatchDateTime())) {
+        SpecResultFormatValidator.validatePositiveDecimalString(
+                details.getFinalAdductQty(), prefix + ".finalAdductQty", required, errors);
+        if (required && isBlank(details.getDispatchDateTime())) {
             errors.put(prefix + ".dispatchDateTime", "dispatchDateTime is required");
         }
     }
@@ -235,29 +231,28 @@ public class RawMaterialSourcingValidationSupport {
     void validateBlendingStylePreparationFields(
             BlendingStylePreparationDetails details,
             String prefix,
+            boolean required,
             Map<String, String> errors) {
-        SpecResultFormatValidator.validateAlphaNumField(
-                details.getMfgBatchLotNo(), prefix + ".mfgBatchLotNo", true, errors);
-        if (details.getTotalQty() == null) {
-            errors.put(prefix + ".totalQty", "totalQty is required");
-        }
-        SpecResultFormatValidator.validateAlphaNumField(
-                details.getEquipmentId(), prefix + ".equipmentId", true, errors);
-        if (details.getAgitatorRpm() == null) {
-            errors.put(prefix + ".agitatorRpm", "agitatorRpm is required");
-        }
-        if (details.getProcessTemp() == null) {
-            errors.put(prefix + ".processTemp", "processTemp is required");
-        }
-        if (details.getJacketTemp() == null) {
-            errors.put(prefix + ".jacketTemp", "jacketTemp is required");
-        }
-        if (isBlank(details.getProcessStartTime())) {
+        SpecResultFormatValidator.validateCodeRefField(
+                details.getMfgBatchLotNo(), prefix + ".mfgBatchLotNo", required, errors);
+        SpecResultFormatValidator.validatePositiveDecimalString(
+                details.getTotalQty(), prefix + ".totalQty", required, errors);
+        SpecResultFormatValidator.validateCodeRefField(
+                details.getEquipmentId(), prefix + ".equipmentId", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getAgitatorRpm(), prefix + ".agitatorRpm", "agitatorRpm", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getProcessTemp(), prefix + ".processTemp", "processTemp", required, errors);
+        SpecResultFormatValidator.validateDecimalString(
+                details.getJacketTemp(), prefix + ".jacketTemp", "jacketTemp", required, errors);
+        if (required && isBlank(details.getProcessStartTime())) {
             errors.put(prefix + ".processStartTime", "processStartTime is required");
         }
-        if (isBlank(details.getProcessEndTime())) {
+        if (required && isBlank(details.getProcessEndTime())) {
             errors.put(prefix + ".processEndTime", "processEndTime is required");
         }
+        SpecResultFormatValidator.validateRemarksField(
+                details.getOtherObservations(), prefix + ".otherObservations", false, errors);
     }
 
     void validateLotForTier(
@@ -270,7 +265,7 @@ public class RawMaterialSourcingValidationSupport {
             return;
         }
 
-        SpecResultFormatValidator.validateAlphaNumField(
+        SpecResultFormatValidator.validateCodeRefField(
                 lot.getLotId(), prefix + ".lotId", true, errors);
 
         if (!isSubmitIntent(submissionType)) {
@@ -292,7 +287,7 @@ public class RawMaterialSourcingValidationSupport {
                 if (cert == null || isBlank(cert.getFileId())) {
                     errors.put(prefix + ".certificates[" + i + "].fileId", "fileId is required");
                 }
-                SpecResultFormatValidator.validateAlphaNumField(
+                SpecResultFormatValidator.validateCodeRefField(
                         cert == null ? null : cert.getCertificateType(),
                         prefix + ".certificates[" + i + "].certificateType",
                         true,

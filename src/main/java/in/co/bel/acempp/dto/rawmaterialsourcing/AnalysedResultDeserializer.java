@@ -16,7 +16,8 @@ public class AnalysedResultDeserializer extends JsonDeserializer<String> {
             return null;
         }
         if (node.isNumber()) {
-            return node.asText();
+            // Prefer BigDecimal plain text so large values are not Double-rounded.
+            return node.decimalValue().stripTrailingZeros().toPlainString();
         }
         if (node.isTextual()) {
             String value = node.textValue();

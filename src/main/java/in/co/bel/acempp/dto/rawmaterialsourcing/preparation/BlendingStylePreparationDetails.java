@@ -4,15 +4,15 @@ public interface BlendingStylePreparationDetails {
 
     String getMfgBatchLotNo();
 
-    Double getTotalQty();
+    String getTotalQty();
 
     String getEquipmentId();
 
-    Double getAgitatorRpm();
+    String getAgitatorRpm();
 
-    Double getProcessTemp();
+    String getProcessTemp();
 
-    Double getJacketTemp();
+    String getJacketTemp();
 
     String getProcessStartTime();
 

@@ -684,10 +684,14 @@ public class FormPdfService {
                     boolean alt = false;
                     for (SpecificationParameterDto p : category.getParameters()) {
                         Color bg = alt ? ROW_ALT : WHITE;
-                        addCell(specTable, str(p.getSpecificationCode()), BODY_BOLD, bg);
-                        addCell(specTable, str(p.getAcemSpec()), BODY_FONT, bg);
+                        String parameterName = p.getSpecificationName() != null
+                                && !p.getSpecificationName().isBlank()
+                                ? p.getSpecificationName()
+                                : str(p.getSpecificationCode());
+                        addCell(specTable, parameterName, BODY_FONT, bg);
+                        addCell(specTable, formatInsulationRange(p.getReferenceRange()), BODY_FONT, bg);
                         addCell(specTable, str(p.getReported()), BODY_FONT, bg);
-                        addCell(specTable, str(p.getReported()), BODY_FONT, bg); // or separate test-result field
+                        addCell(specTable, str(p.getAcemSpec()), BODY_FONT, bg);
                         alt = !alt;
                     }
                     doc.add(specTable);
@@ -786,11 +790,12 @@ public class FormPdfService {
                 Color bg = alt ? ROW_ALT : WHITE;
                 Readings r = dim.getReadings();
                 addCell(dimTable, String.valueOf(idx++), BODY_FONT, bg);
-                addCell(dimTable, str(dim.getParamName()), BODY_BOLD, bg);
-                addCell(dimTable, formatSpecRange(dim.getSpecifiedDimension()), BODY_FONT, bg);                addCell(dimTable, r != null ? str(r.getR2tR2b()) : "-", BODY_FONT, bg);
-                addCell(dimTable, r != null ? str(r.getR1rR1l()) : "-", BODY_FONT, bg);
-                addCell(dimTable, r != null ? str(r.getTlBr()) : "-", BODY_FONT, bg);
-                addCell(dimTable, r != null ? str(r.getTrBl()) : "-", BODY_FONT, bg);
+                addCell(dimTable, dashIfBlank(dim.getParamName()), BODY_BOLD, bg);
+                addCell(dimTable, formatSpecRange(dim.getSpecifiedDimension()), BODY_FONT, bg);
+                addCell(dimTable, dashIfBlank(r != null ? r.getR2tR2b() : null), BODY_FONT, bg);
+                addCell(dimTable, dashIfBlank(r != null ? r.getR1rR1l() : null), BODY_FONT, bg);
+                addCell(dimTable, dashIfBlank(r != null ? r.getTlBr() : null), BODY_FONT, bg);
+                addCell(dimTable, dashIfBlank(r != null ? r.getTrBl() : null), BODY_FONT, bg);
                 alt = !alt;
             }
             doc.add(dimTable);
@@ -835,7 +840,7 @@ public class FormPdfService {
                 for (MotorLengthMeasurement row : dimsList) {
                     Color bg = alt ? ROW_ALT : WHITE;
                     MotorLengthDetails len = row.getMotorLength();
-                    addCell(md, str(row.getSrNo()), BODY_FONT, bg);
+                    addCell(md, dashIfBlank(row.getSrNo()), BODY_FONT, bg);
                     addCell(md, formatMeasurement(row.getLfRubberThicknessHe()), BODY_FONT, bg);
                     addCell(md, formatMeasurement(row.getHeBossWidthWithoutLfRubber()), BODY_FONT, bg);
                     addCell(md, formatMeasurement(row.getHeDiaId()), BODY_FONT, bg);
@@ -867,12 +872,12 @@ public class FormPdfService {
                 boolean alt = false;
                 for (MandrelAssemblyMeasurement row : assemblies) {
                     Color bg = alt ? ROW_ALT : WHITE;
-                    addCell(ma, str(row.getSrNo()), BODY_FONT, bg);
-                    addCell(ma, str(row.getMandrelRestOnDomeA()), BODY_FONT, bg);
-                    addCell(ma, str(row.getMandrelRestOnBottomCupB()), BODY_FONT, bg);
-                    addCell(ma, str(row.getDifferenceC()), BODY_FONT, bg);
-                    addCell(ma, str(row.getBellowThicknessD()), BODY_FONT, bg);
-                    addCell(ma, str(row.getMandrelLiftE()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getSrNo()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getMandrelRestOnDomeA()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getMandrelRestOnBottomCupB()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getDifferenceC()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getBellowThicknessD()), BODY_FONT, bg);
+                    addCell(ma, dashIfBlank(row.getMandrelLiftE()), BODY_FONT, bg);
                     alt = !alt;
                 }
                 doc.add(ma);
@@ -913,8 +918,8 @@ public class FormPdfService {
                                  List<DocumentDto> files, boolean alt) {
         if (files == null || files.isEmpty()) {
             Color bg = alt ? ROW_ALT : WHITE;
-            addCell(table, sectionName, BODY_FONT, bg);
-            addCell(table, "-", BODY_FONT, bg);
+            addLeftAlignedCell(table, sectionName, bg);
+            addLeftAlignedCell(table, "-", bg);
             return !alt;
         }
 
@@ -924,12 +929,12 @@ public class FormPdfService {
 
             // Only show the section name on the first file of the group
             String sectionLabel = (i == 0) ? sectionName : "";
-            addCell(table, sectionLabel, BODY_FONT, bg);
+            addLeftAlignedCell(table, sectionLabel, bg);
 
             String fileName = docDto != null && docDto.getFileName() != null
                     ? docDto.getFileName()
                     : "-";
-            addCell(table, fileName, BODY_FONT, bg);
+            addLeftAlignedCell(table, fileName, bg);
 
             alt = !alt;
         }
@@ -948,6 +953,14 @@ public class FormPdfService {
             return "-";
         }
         return min + " - " + max + unit + source;
+    }
+
+    private String dashIfBlank(Object value) {
+        if (value == null || value.toString().isBlank()
+                || "N/A".equalsIgnoreCase(value.toString().trim())) {
+            return "-";
+        }
+        return str(value);
     }
 
     private void addIdCardCell(PdfPTable table, String label, String value) {
@@ -1332,14 +1345,22 @@ public class FormPdfService {
             if (material.getAluminum() != null) {
                 AluminumProcessDto al = material.getAluminum();
                 addSection(doc, "Aluminum Powder Processing", "");
-                PdfPTable t = createKeyValueTable();
-                addKV(t, "Equipment Id", str(al.getEquipmentId()));
-                addKV(t, "Set RPM", str(al.getSetRpm()));
-                addKV(t, "Start Date & Time", str(al.getStartDatetime()));
-                addKV(t, "End Date & Time", str(al.getEndDatetime()));
-                addKV(t, "Observation", str(al.getObservation()));
-                addKV(t, "Qty. (kg) qualified", str(al.getQtyKgQualified()));
-                addKV(t, "Date & Time of dispatch", str(al.getDispatchDatetime()));
+                PdfPTable t = createTable(new float[]{13, 10, 15, 15, 20, 12, 15});
+                addCenteredHeaders(t,
+                        "EQUIPMENT ID",
+                        "SET RPM",
+                        "START DATE & TIME",
+                        "END DATE & TIME",
+                        "OBSERVATION",
+                        "QTY. (KG) QUALIFIED",
+                        "DATE & TIME OF DISPATCH");
+                addCenteredCell(t, str(al.getEquipmentId()), WHITE);
+                addCenteredCell(t, str(al.getSetRpm()), WHITE);
+                addCenteredCell(t, str(al.getStartDatetime()), WHITE);
+                addCenteredCell(t, str(al.getEndDatetime()), WHITE);
+                addCenteredCell(t, str(al.getObservation()), WHITE);
+                addCenteredCell(t, str(al.getQtyKgQualified()), WHITE);
+                addCenteredCell(t, str(al.getDispatchDatetime()), WHITE);
                 doc.add(t);
                 spacer(doc, 6);
             }
@@ -1387,7 +1408,8 @@ public class FormPdfService {
 
         PdfPTable summary = createTable(new float[]{25, 25, 25, 25});
         addInfoStripCell(summary, "Batch ID", str(data.getBatchId()));
-        addInfoStripCell(summary, "Submitted by", workflowStatusLabel(data.getSubmittedBy().getFullName()));
+        addInfoStripCell(summary, "Submitted by",
+                data.getSubmittedBy() != null ? str(data.getSubmittedBy().getFullName()) : "-");
         addInfoStripCell(summary, "Approved Motors",
                 data.getApprovedMotorCount() + " / " + data.getTotalMotorCount());
         addInfoStripCell(summary, "Pending / Rejected",
@@ -2209,52 +2231,41 @@ public class FormPdfService {
             if (!process.isEmpty() || !finalMixRows.isEmpty() || !castingRows.isEmpty()) {
                 addSection(doc, "Casting Process", "");
 
-                if (!process.isEmpty()) {
-                    PdfPTable t = createKeyValueTable();
-                    addKV(t, "Initial Vacuum", ccText(process, "INITIAL_VACUUM", "initialVacuum"));
-                    addKV(t, "Vacuum Pressure Created for Casting",
-                            ccText(process, "VACUUM_PRESSURE_CASTING", "vacuumPressureCasting"));
-                    addKV(t, "Vacuum Pressure Created for Soaking",
-                            ccText(process, "VACUUM_PRESSURE_SOAKING", "vacuumPressureSoaking"));
-                    addKV(t, "TDI Clearance after Vacuum Trial",
-                            ccDateTime(process, "TDI_CLEARANCE_AFTER_VACUUM",
-                                    "tdiClearanceAfterVacuum", null));
-                    doc.add(t);
-                    spacer(doc, 6);
-                }
-
                 if (!finalMixRows.isEmpty()) {
                     addSection(doc, "Final Mix Bowl Details", "");
-                    int rowNumber = 1;
+                    PdfPTable table = createTable(
+                            new float[]{11, 15, 9, 9, 10, 12, 12, 11, 11});
+                    addCenteredHeaders(table,
+                            "BOWL ID",
+                            "RECEIPT DATE & TIME",
+                            "INITIAL WEIGHT",
+                            "FINAL WEIGHT",
+                            "INITIAL SLURRY DEPTH",
+                            "D/C VALVE OPEN DATE & TIME",
+                            "D/C VALVE CLOSE DATE & TIME",
+                            "SLURRY DEPTH AFTER D/C OPEN",
+                            "BALL VALVE OPEN DATE & TIME");
+                    boolean alt = false;
                     for (Map<String, Object> row : finalMixRows) {
-                        String bowlId = ccText(row, "BOWL_ID", "bowlId");
-                        Paragraph bowlHeading = new Paragraph(
-                                "FINAL_MIX " + ccSerial(row, rowNumber++) + " / " + bowlId, BODY_BOLD);
-                        bowlHeading.setSpacingBefore(3);
-                        bowlHeading.setSpacingAfter(3);
-                        doc.add(bowlHeading);
-
-                        PdfPTable table = createTable(new float[]{33, 33, 34});
-                        addInfoStripCell(table, "Bowl Id", bowlId);
-                        addInfoStripCell(table, "Bowl Receipt Date & Time",
-                                ccDateTime(row, "bowlReceiptDateTime", "bowlReceiptDate", "bowlReceiptTime"));
-                        addInfoStripCell(table, "Initial Weight",
-                                ccText(row, "INITIAL_WEIGHT", "initialWeight"));
-                        addInfoStripCell(table, "Final Weight",
-                                ccText(row, "FINAL_WEIGHT", "finalWeight"));
-                        addInfoStripCell(table, "Initial Slurry Depth",
-                                ccText(row, "INITIAL_SLURRY_DEPTH", "initialSlurryDepth"));
-                        addInfoStripCell(table, "Bowl D/C Valve Opening Date & Time",
-                                ccDateTime(row, "dcOpenDateTime", "dcOpenDate", "dcOpenTime"));
-                        addInfoStripCell(table, "Bowl D/C Valve Closing Date & Time",
-                                ccDateTime(row, "dcCloseDateTime", "dcCloseDate", "dcCloseTime"));
-                        addInfoStripCell(table, "Depth of Slurry after Opening of D/C Valve",
-                                ccText(row, "SLURRY_DEPTH_AFTER_DC", "slurryDepthAfterDc"));
-                        addInfoStripCell(table, "Ball Valve Opening Date & Time",
-                                ccDateTime(row, "ballValveOpenDateTime", "ballValveOpenDate", "ballValveOpenTime"));
-                        doc.add(table);
-                        spacer(doc, 4);
+                        Color bg = alt ? ROW_ALT : WHITE;
+                        addCenteredCell(table, ccText(row, "BOWL_ID", "bowlId"), bg);
+                        addCenteredCell(table,
+                                ccDateTime(row, "bowlReceiptDateTime", "bowlReceiptDate", "bowlReceiptTime"), bg);
+                        addCenteredCell(table, ccText(row, "INITIAL_WEIGHT", "initialWeight"), bg);
+                        addCenteredCell(table, ccText(row, "FINAL_WEIGHT", "finalWeight"), bg);
+                        addCenteredCell(table,
+                                ccText(row, "INITIAL_SLURRY_DEPTH", "initialSlurryDepth"), bg);
+                        addCenteredCell(table,
+                                ccDateTime(row, "dcOpenDateTime", "dcOpenDate", "dcOpenTime"), bg);
+                        addCenteredCell(table,
+                                ccDateTime(row, "dcCloseDateTime", "dcCloseDate", "dcCloseTime"), bg);
+                        addCenteredCell(table,
+                                ccText(row, "SLURRY_DEPTH_AFTER_DC", "slurryDepthAfterDc"), bg);
+                        addCenteredCell(table,
+                                ccDateTime(row, "ballValveOpenDateTime", "ballValveOpenDate", "ballValveOpenTime"), bg);
+                        alt = !alt;
                     }
+                    doc.add(table);
                     spacer(doc, 6);
                 }
 
@@ -2292,6 +2303,20 @@ public class FormPdfService {
                         alt = !alt;
                     }
                     doc.add(table);
+                    spacer(doc, 6);
+                }
+
+                if (!process.isEmpty()) {
+                    PdfPTable t = createKeyValueTable();
+                    addKV(t, "Initial Vacuum", ccText(process, "INITIAL_VACUUM", "initialVacuum"));
+                    addKV(t, "Vacuum Pressure Created for Casting",
+                            ccText(process, "VACUUM_PRESSURE_CASTING", "vacuumPressureCasting"));
+                    addKV(t, "Vacuum Pressure Created for Soaking",
+                            ccText(process, "VACUUM_PRESSURE_SOAKING", "vacuumPressureSoaking"));
+                    addKV(t, "TDI Clearance after Vacuum Trial",
+                            ccDateTime(process, "TDI_CLEARANCE_AFTER_VACUUM",
+                                    "tdiClearanceAfterVacuum", null));
+                    doc.add(t);
                     spacer(doc, 6);
                 }
             }
@@ -7515,7 +7540,7 @@ public class FormPdfService {
     }
 
     private String formatMeasurement(MockTrialMeasurementValue m) {
-        if (m == null || m.getValue() == null) return "N/A";
+        if (m == null || m.getValue() == null) return "-";
         return m.getValue() + " " + (m.getUnit() != null ? m.getUnit() : "");
     }
 
@@ -7534,6 +7559,16 @@ public class FormPdfService {
         if (range.getMinValue() == null) return "≤ " + range.getMaxValue() + unit;
         if (range.getMaxValue() == null) return "≥ " + range.getMinValue() + unit;
         return range.getMinValue() + " – " + range.getMaxValue() + unit;
+    }
+
+    private String formatInsulationRange(ReferenceRange range) {
+        if (range == null) return "N/A";
+        Double min = range.getMinValue();
+        Double max = range.getMaxValue();
+        if (min == null && max == null) return "N/A";
+        if (min == null) return "≤ " + formatPdfNumber(max);
+        if (max == null) return "≥ " + formatPdfNumber(min);
+        return formatPdfNumber(min) + " - " + formatPdfNumber(max);
     }
 
 
@@ -7758,8 +7793,34 @@ public class FormPdfService {
             cell.setBackgroundColor(BRAND_BLUE);
             cell.setPadding(5);
             cell.setBorderColor(BRAND_BLUE);
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             table.addCell(cell);
         }
+        table.setHeaderRows(1);
+    }
+
+    private void addCenteredHeaders(PdfPTable table, String... headers) {
+        for (String header : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(header, HEADER_FONT));
+            cell.setBackgroundColor(BRAND_BLUE);
+            cell.setPadding(5);
+            cell.setBorderColor(BRAND_BLUE);
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            table.addCell(cell);
+        }
+        table.setHeaderRows(1);
+    }
+
+    private void addCenteredCell(PdfPTable table, String value, Color background) {
+        PdfPCell cell = new PdfPCell(new Phrase(str(value), BODY_FONT));
+        cell.setPadding(5);
+        cell.setBackgroundColor(background);
+        cell.setBorderColor(BORDER_LIGHT);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(cell);
     }
 
     private PdfPCell mixingHeaderCell(String text) {
@@ -7777,6 +7838,32 @@ public class FormPdfService {
         cell.setPadding(5);
         cell.setBackgroundColor(bg);
         cell.setBorderColor(BORDER_LIGHT);
+        if (hasBlueColumnHeader(table)) {
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        }
+        table.addCell(cell);
+    }
+
+    private boolean hasBlueColumnHeader(PdfPTable table) {
+        if (table.getHeaderRows() == 0 || table.size() == 0) return false;
+        PdfPCell[] headerCells = table.getRow(0).getCells();
+        if (headerCells == null) return false;
+        for (PdfPCell headerCell : headerCells) {
+            if (headerCell != null && BRAND_BLUE.equals(headerCell.getBackgroundColor())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addLeftAlignedCell(PdfPTable table, String text, Color bg) {
+        PdfPCell cell = new PdfPCell(new Phrase(str(text), BODY_FONT));
+        cell.setPadding(5);
+        cell.setBackgroundColor(bg);
+        cell.setBorderColor(BORDER_LIGHT);
+        cell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         table.addCell(cell);
     }
 

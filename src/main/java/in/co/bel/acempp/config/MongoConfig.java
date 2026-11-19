@@ -33,11 +33,11 @@ public class MongoConfig {
             if (source == null) {
                 return null;
             }
-            double value = source.doubleValue();
-            if (value == Math.rint(value) && !Double.isInfinite(value)) {
-                return String.valueOf((long) value);
+            if (source instanceof BigDecimal bigDecimal) {
+                return bigDecimal.stripTrailingZeros().toPlainString();
             }
-            return source.toString();
+            // Avoid (long) cast — overflows / rounds large decimal values.
+            return new BigDecimal(source.toString()).stripTrailingZeros().toPlainString();
         }
     }
 

@@ -135,8 +135,25 @@ public class FileSystemController {
                 subDepartmentId,
                 userId
         );
-        log.info("Successfully processed batch file upload of {} files for subDepartmentId={}",
-                responseData, subDepartmentId);
+
+        String status = responseData != null ? responseData.getStatus() : null;
+        boolean failed = status != null
+                && (status.equalsIgnoreCase("FAILED") || status.equalsIgnoreCase("TEMP_FAILED"));
+        if (failed) {
+            String errorMessage = responseData.getErrorMessage();
+            if (errorMessage == null || errorMessage.isBlank()) {
+                errorMessage = "Unsupported file format for upload.";
+            }
+            log.warn("Temp file upload failed for subDepartmentId={}: {}", subDepartmentId, errorMessage);
+            return AcemTemplate.validationError(
+                    responseData,
+                    errorMessage,
+                    ErrorCode.BAD_REQUEST.name());
+        }
+
+        log.info("Successfully processed temp file upload for subDepartmentId={}, fileId={}",
+                subDepartmentId,
+                responseData != null ? responseData.getFileId() : null);
 
         return AcemTemplate.success(responseData, "Files uploaded successfully");
     }
