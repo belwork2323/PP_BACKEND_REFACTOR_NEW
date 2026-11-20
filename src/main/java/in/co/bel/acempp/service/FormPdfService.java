@@ -27,7 +27,9 @@ import in.co.bel.acempp.dto.subscale.subscalecreation.*;
 import in.co.bel.acempp.dto.subscale.SubscaleProcessingDetailsResponse;
 import in.co.bel.acempp.dto.ndt.NdtDetailsResponse;
 import in.co.bel.acempp.dto.qcdivision.DivisionDetailDto;
+import in.co.bel.acempp.dto.qcdivision.DivisionStatusDto;
 import in.co.bel.acempp.dto.qcdivision.QcDivisionFormResponse;
+import in.co.bel.acempp.dto.qcdivision.QcMotorStatusDto;
 import in.co.bel.acempp.dto.statictestingfacility.StaticMotorData;
 import in.co.bel.acempp.dto.statictestingfacility.StfPayloads.*;
 import in.co.bel.acempp.dto.statictestingfacility.StfDetailsResponse;
@@ -39,6 +41,7 @@ import in.co.bel.acempp.dto.rocketmotorcasing.*;
 import in.co.bel.acempp.dto.trimming.trimmingcreation.*;
 import in.co.bel.acempp.dto.trimming.TrimmingDetailsResponse;
 import in.co.bel.acempp.dto.user.operations.SpecificationRangeDto;
+import in.co.bel.acempp.entity.CastingStation;
 import in.co.bel.acempp.entity.qualitycontrol.BemMotor;
 import in.co.bel.acempp.entity.sourcing.Lot;
 import in.co.bel.acempp.enums.ErrorCode;
@@ -46,6 +49,7 @@ import in.co.bel.acempp.enums.PreparationType;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.exception.AcemException;
 import in.co.bel.acempp.repository.qualitycontrol.BemMotorRepository;
+import in.co.bel.acempp.repository.CastingStationRepository;
 import in.co.bel.acempp.repository.sourcing.LotRepository;
 import in.co.bel.acempp.service.dispatch.DispatchService;
 import in.co.bel.acempp.service.manufacturing.*;
@@ -97,6 +101,7 @@ public class FormPdfService {
     private final BemMotorService bemMotorService;
     private final BemMotorRepository bemMotorRepository;
     private final LotRepository lotRepository;
+    private final CastingStationRepository castingStationRepository;
 
     // ── Styling Constants ─────────────────────────────────────────
     private static final Color BRAND_BLUE = new Color(13, 71, 116);
@@ -1984,6 +1989,8 @@ public class FormPdfService {
                     pHeader.setPadding(5);
                     pHeader.setRowspan(2);
                     pHeader.setBorderColor(BORDER_LIGHT);
+                    pHeader.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    pHeader.setVerticalAlignment(Element.ALIGN_MIDDLE);
                     qcTable.addCell(pHeader);
 
                     PdfPCell sHeader = new PdfPCell(new Phrase("SPECIFICATION", HEADER_FONT));
@@ -1991,6 +1998,8 @@ public class FormPdfService {
                     sHeader.setPadding(5);
                     sHeader.setRowspan(2);
                     sHeader.setBorderColor(BORDER_LIGHT);
+                    sHeader.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    sHeader.setVerticalAlignment(Element.ALIGN_MIDDLE);
                     qcTable.addCell(sHeader);
 
                     PdfPCell oHeader = new PdfPCell(new Phrase("OBSERVED VALUES", HEADER_FONT));
@@ -1998,6 +2007,7 @@ public class FormPdfService {
                     oHeader.setPadding(5);
                     oHeader.setColspan(sampleNumbers.size());
                     oHeader.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    oHeader.setVerticalAlignment(Element.ALIGN_MIDDLE);
                     oHeader.setBorderColor(BORDER_LIGHT);
                     qcTable.addCell(oHeader);
 
@@ -2007,6 +2017,7 @@ public class FormPdfService {
                         sampleHeader.setBackgroundColor(BRAND_BLUE);
                         sampleHeader.setPadding(5);
                         sampleHeader.setHorizontalAlignment(Element.ALIGN_CENTER);
+                        sampleHeader.setVerticalAlignment(Element.ALIGN_MIDDLE);
                         sampleHeader.setBorderColor(BORDER_LIGHT);
                         qcTable.addCell(sampleHeader);
                     }
@@ -2038,12 +2049,11 @@ public class FormPdfService {
                             }
                         }
 
-                        addCell(qcTable, paramLabel, BODY_FONT, bg);
-                        addCell(qcTable, specification, BODY_FONT, bg);
+                        addCenteredCell(qcTable, paramLabel, bg);
+                        addCenteredCell(qcTable, specification, bg);
                         for (Integer sampleNo : sampleNumbers) {
-                            addCell(qcTable,
-                                    observedValues.getOrDefault(sampleNo, "-"),
-                                    BODY_FONT, bg);
+                            addCenteredCell(qcTable,
+                                    observedValues.getOrDefault(sampleNo, "-"), bg);
                         }
                         alt = !alt;
                     }
@@ -2944,7 +2954,10 @@ public class FormPdfService {
         addSection(doc, title, "");
         PdfPTable summary = createKeyValueTable();
         addKV(summary, "Batch No.", str(details.getBatchNo()));
-        addKV(summary, "Date & Time of Preparation", str(details.getPreparationDateTime()));
+        String mixDateLabel = title.toLowerCase(Locale.ROOT).contains("final mix")
+                ? "Date of Final Mix"
+                : "Date of Premix";
+        addKV(summary, mixDateLabel, str(details.getPreparationDateTime()));
         doc.add(summary);
         spacer(doc, 4);
 
@@ -3046,8 +3059,17 @@ public class FormPdfService {
         addSection(doc, "Dispatch Details", "");
         PdfPTable table = createKeyValueTable();
         addKV(table, "Date & Time of Dispatch", str(details.getDispatchDateTime()));
-        addKV(table, "Dispatch Station", str(details.getDispatchStation()));
+        addKV(table, "Dispatch Station", castingStationName(details.getDispatchStation()));
         doc.add(table);
+    }
+
+    private String castingStationName(String stationCode) {
+        if (stationCode == null || stationCode.isBlank()) return "-";
+        if (castingStationRepository == null) return stationCode;
+        return castingStationRepository.findByStationCode(stationCode.trim())
+                .map(CastingStation::getStationName)
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(stationCode);
     }
 
 
@@ -3337,9 +3359,8 @@ public class FormPdfService {
                 && !data.getTrimmingDetails().getTrimmingTable().isEmpty()) {
 
             addSection(doc, "Trimming Details", "");
-            // Split wide measure set into two tables for landscape readability.
-            PdfPTable heTable = createTable(new float[]{6, 14, 14, 11, 11, 11, 11, 11, 11});
-            addHeaders(heTable,
+            PdfPTable table = createTable(new float[]{4, 8, 8, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8});
+            addHeaders(table,
                     "SR",
                     "ARTICLE TYPE",
                     "BEM NO",
@@ -3348,13 +3369,6 @@ public class FormPdfService {
                     "HE PORT OUT",
                     "HE BEFORE IN",
                     "HE BEFORE OUT",
-                    "LENGTH BEFORE INHIB");
-
-            PdfPTable neTable = createTable(new float[]{6, 14, 14, 11, 11, 11, 11, 11, 11});
-            addHeaders(neTable,
-                    "SR",
-                    "ARTICLE TYPE",
-                    "BEM NO",
                     "NE SIDE OD",
                     "NE PORT IN",
                     "NE PORT OUT",
@@ -3371,30 +3385,23 @@ public class FormPdfService {
                 String bemNo = str(r.getBemNo());
                 String lengthBefore = str(r.getLengthBeforeInhibition());
 
-                addCell(heTable, srNo, BODY_FONT, bg);
-                addCell(heTable, articleType, BODY_FONT, bg);
-                addCell(heTable, bemNo, BODY_FONT, bg);
-                addCell(heTable, str(r.getHeOd()), BODY_FONT, bg);
-                addCell(heTable, str(r.getHePortInner()), BODY_FONT, bg);
-                addCell(heTable, str(r.getHePortOuter()), BODY_FONT, bg);
-                addCell(heTable, str(r.getHeBeforeInhibitionInner()), BODY_FONT, bg);
-                addCell(heTable, str(r.getHeBeforeInhibitionOuter()), BODY_FONT, bg);
-                addCell(heTable, lengthBefore, BODY_FONT, bg);
-
-                addCell(neTable, srNo, BODY_FONT, bg);
-                addCell(neTable, articleType, BODY_FONT, bg);
-                addCell(neTable, bemNo, BODY_FONT, bg);
-                addCell(neTable, str(r.getNeOd()), BODY_FONT, bg);
-                addCell(neTable, str(r.getNePortInner()), BODY_FONT, bg);
-                addCell(neTable, str(r.getNePortOuter()), BODY_FONT, bg);
-                addCell(neTable, str(r.getNeWebInner()), BODY_FONT, bg);
-                addCell(neTable, str(r.getNeWebOuter()), BODY_FONT, bg);
-                addCell(neTable, lengthBefore, BODY_FONT, bg);
+                addCell(table, srNo, BODY_FONT, bg);
+                addCell(table, articleType, BODY_FONT, bg);
+                addCell(table, bemNo, BODY_FONT, bg);
+                addCell(table, str(r.getHeOd()), BODY_FONT, bg);
+                addCell(table, str(r.getHePortInner()), BODY_FONT, bg);
+                addCell(table, str(r.getHePortOuter()), BODY_FONT, bg);
+                addCell(table, str(r.getHeBeforeInhibitionInner()), BODY_FONT, bg);
+                addCell(table, str(r.getHeBeforeInhibitionOuter()), BODY_FONT, bg);
+                addCell(table, str(r.getNeOd()), BODY_FONT, bg);
+                addCell(table, str(r.getNePortInner()), BODY_FONT, bg);
+                addCell(table, str(r.getNePortOuter()), BODY_FONT, bg);
+                addCell(table, str(r.getNeWebInner()), BODY_FONT, bg);
+                addCell(table, str(r.getNeWebOuter()), BODY_FONT, bg);
+                addCell(table, lengthBefore, BODY_FONT, bg);
                 alt = !alt;
             }
-            doc.add(heTable);
-            spacer(doc, 4);
-            doc.add(neTable);
+            doc.add(table);
             spacer(doc, 8);
         }
 
@@ -3579,7 +3586,7 @@ public class FormPdfService {
 
             // Meta
             PdfPTable meta = createKeyValueTable();
-            addKV(meta, "Motor Stage", stage);
+            addKV(meta, "Motor Stage", "Stage " + stage);
             addKV(meta, "Motor Received Date & Time", receivedAt);
             doc.add(meta);
             spacer(doc, 6);
@@ -3992,24 +3999,11 @@ public class FormPdfService {
         doc.add(summary);
         spacer(doc, 8);
 
-        addSection(doc, "Form details", "");
-        PdfPTable formDetails = createTable(new float[]{22, 28, 22, 28});
-        addCell(formDetails, "Form ID", BODY_BOLD, ROW_ALT);
-        addCell(formDetails, str(data.getFormId()), BODY_FONT, WHITE);
-        addCell(formDetails, "Created By", BODY_BOLD, ROW_ALT);
-        addCell(formDetails, str(data.getCreatedBy()), BODY_FONT, WHITE);
-        addCell(formDetails, "Created On", BODY_BOLD, ROW_ALT);
-        addCell(formDetails, str(data.getCreatedAt()), BODY_FONT, WHITE);
-        addCell(formDetails, "Last Updated By", BODY_BOLD, ROW_ALT);
-        addCell(formDetails, qcPersonName(data.getUpdatedBy()), BODY_FONT, WHITE);
-        addCell(formDetails, "Last Updated On", BODY_BOLD, ROW_ALT);
-        addCell(formDetails, str(data.getUpdatedAt()), BODY_FONT, WHITE);
-        doc.add(formDetails);
-        spacer(doc, 8);
+
 
         for (Map<String, Object> motorMap : data.getMotors()) {
             String motorId = ccText(motorMap, "motorId", "motorIdNo");
-            addMotorStatusHeader(doc, motorId, ndtMotorStatus(data, motorMap, motorId));
+            addPlainMotorStatusHeader(doc, motorId, ndtMotorStatus(data, motorMap, motorId));
 
             Map<String, Object> radiography = qcObjectMap(
                     qcValue(motorMap, "radiographyDetails"));
@@ -4182,29 +4176,27 @@ public class FormPdfService {
             return;
         }
 
-        addSection(doc, "Quality Control Division Inspection Report", "");
+        addSection(doc, "Quality Assurance Division Inspection Report", "");
 
-        PdfPTable metaTable = createTable(new float[]{20, 30, 20, 30});
-        addCell(metaTable, "Batch ID", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getBatchId()), BODY_FONT, WHITE);
-        addCell(metaTable, "Sub Department ID", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getSubDepartmentId()), BODY_FONT, WHITE);
-        addCell(metaTable, "Submission Type", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, workflowStatusLabel(data.getFormSubmissionType()), BODY_FONT, WHITE);
-        addCell(metaTable, "Form Status", BODY_BOLD, ROW_ALT);
-        addWorkflowStatusCell(metaTable, data.getStatus());
-        addCell(metaTable, "Submitted By", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, qcPersonName(data.getSubmittedBy()), BODY_FONT, WHITE);
-        addCell(metaTable, "Submitted At", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getSubmittedAt()), BODY_FONT, WHITE);
-        addCell(metaTable, "Approved By", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, qcPersonName(data.getApprovedBy()), BODY_FONT, WHITE);
-        addCell(metaTable, "Approved At", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getApprovedAt()), BODY_FONT, WHITE);
+        PdfPTable metaTable = createTable(new float[]{25, 25, 25, 25});
+        addInfoStripCell(metaTable, "Batch ID", str(data.getBatchId()));
+        addInfoStripCell(metaTable, "Sub Department ID", str(data.getSubDepartmentId()));
+        addInfoStripCell(metaTable, "Submission Type", workflowStatusLabel(data.getFormSubmissionType()));
+        addInfoStripCell(metaTable, "Submitted By", qcPersonName(data.getSubmittedBy()));
+        Phrase formStatusPhrase = new Phrase();
+        formStatusPhrase.add(new Chunk("Form Status: ",
+                new Font(Font.HELVETICA, 8, Font.BOLD, Color.BLACK)));
+        formStatusPhrase.add(new Chunk(workflowStatusLabel(data.getStatus()),
+                new Font(Font.HELVETICA, 8, Font.BOLD, workflowStatusColor(data.getStatus()))));
+        PdfPCell formStatusCell = new PdfPCell(formStatusPhrase);
+        formStatusCell.setColspan(4);
+        formStatusCell.setPadding(6);
+        formStatusCell.setBackgroundColor(ROW_ALT);
+        formStatusCell.setBorderColor(BORDER_LIGHT);
+        metaTable.addCell(formStatusCell);
         doc.add(metaTable);
 
-        renderQcDivisionStatusSummary(doc, data);
-        renderQcUnitStatusSummaries(doc, data);
+        renderQcDivisionMotorStatusSummary(doc, data);
 
         List<DivisionDetailDto> details = data.getDivisionDetails();
         if (details == null || details.isEmpty()) {
@@ -4213,30 +4205,17 @@ public class FormPdfService {
             return;
         }
 
-        for (DivisionDetailDto detail : details) {
+        List<DivisionDetailDto> orderedDetails = new ArrayList<>(details);
+        orderedDetails.sort(Comparator.comparingInt(detail -> qcDivisionPdfOrder(
+                detail == null ? null : qcEffectiveDivision(
+                        detail.getDivision(), detail.getSubType()))));
+        for (DivisionDetailDto detail : orderedDetails) {
             if (detail == null) continue;
 
             String division = detail.getDivision();
             String effectiveDivision = qcEffectiveDivision(division, detail.getSubType());
             String displayDivision = qcDivisionDisplayName(effectiveDivision);
-            String divisionSubtitle = detail.getDivisionId() != null
-                    ? "Division ID: " + detail.getDivisionId()
-                    : "";
-            addSection(doc, displayDivision, divisionSubtitle);
-
-            PdfPTable divisionTable = createTable(new float[]{22, 28, 22, 28});
-            addCell(divisionTable, "Submission Type", BODY_BOLD, ROW_ALT);
-            addCell(divisionTable,
-                    workflowStatusLabel(detail.getDivisionSubmissionType()),
-                    BODY_FONT,
-                    WHITE);
-            addCell(divisionTable, "Submission Status", BODY_BOLD, ROW_ALT);
-            addWorkflowStatusCell(divisionTable, detail.getDivisionSubmissionStatus());
-            addCell(divisionTable, "Division Status", BODY_BOLD, ROW_ALT);
-            addWorkflowStatusCell(divisionTable, detail.getStatus());
-            addCell(divisionTable, "Action By", BODY_BOLD, ROW_ALT);
-            addCell(divisionTable, qcPersonName(detail.getActionBy()), BODY_FONT, WHITE);
-            doc.add(divisionTable);
+            addSection(doc, displayDivision, "");
 
             if (detail.getRemarks() != null && !detail.getRemarks().isBlank()) {
                 Paragraph remarks = new Paragraph("Remarks: " + detail.getRemarks(), BODY_FONT);
@@ -4266,6 +4245,14 @@ public class FormPdfService {
             }
             spacer(doc, 8);
         }
+    }
+
+    private void renderQcQaRemarks(Document doc, Object value) throws DocumentException {
+        if (!hasQcDisplayValue(value)) return;
+        addQcEvaluationHeading(doc, "QA Remarks", 0);
+        PdfPTable table = createTable(new float[]{100});
+        addCell(table, qcDisplayValue(value), BODY_FONT, WHITE);
+        doc.add(table);
     }
 
     private boolean renderConciseQcDivisionData(
@@ -4317,9 +4304,21 @@ public class FormPdfService {
     }
 
     private String qcDivisionDisplayName(String division) {
+        if ("NDT".equalsIgnoreCase(division)) return "NDT";
         return "PROPELLANTPROPERTIES".equals(normalizePdfKey(division))
                 ? "QC Division"
                 : prettyText(division);
+    }
+
+    private int qcDivisionPdfOrder(String division) {
+        return switch (normalizePdfKey(division)) {
+            case "CASTING" -> 10;
+            case "CURING" -> 20;
+            case "DECORING" -> 30;
+            case "TRIMMING" -> 40;
+            case "POSTCURE", "POSTCUREOPERATION" -> 50;
+            default -> 100;
+        };
     }
 
     private boolean renderQcRawMaterialRevalidation(
@@ -4352,7 +4351,7 @@ public class FormPdfService {
                         checks.getFirst(), "lotBatchNumber", "lotId", "batchNumber"));
             }
             if (lotNumber != null) {
-                Paragraph lot = new Paragraph("Lot / Batch: " + lotNumber, SUBTITLE_FONT);
+                Paragraph lot = new Paragraph("Lot: " + lotNumber, SUBTITLE_FONT);
                 lot.setSpacingAfter(3);
                 doc.add(lot);
             }
@@ -4695,11 +4694,7 @@ public class FormPdfService {
             Map<String, Object> motor = qcMergedMotorDetails(motors.get(motorIndex));
             String motorId = qcText(qcValue(motor, "motorIdNo", "motorId"));
             if (motorId == null) motorId = "Motor " + (motorIndex + 1);
-            Object motorStatus = qcValue(motor, "motorSubmissionStatus", "approvalStatus");
-            String motorHeading = motorStatus == null
-                    ? motorId
-                    : motorId + " — " + workflowStatusLabel(motorStatus);
-            Paragraph motorTitle = new Paragraph(motorHeading, LABEL_FONT);
+            Paragraph motorTitle = new Paragraph(motorId, LABEL_FONT);
             motorTitle.setSpacingBefore(8);
             motorTitle.setSpacingAfter(4);
             doc.add(motorTitle);
@@ -4711,8 +4706,9 @@ public class FormPdfService {
                         qcValue(processDetails, "preheating", "preheatingDetails"), motor);
                 renderQcHardwareRows(doc, "Liner Coating", "LINERCOATING",
                         qcValue(processDetails, "linerCoating", "linerCoatingDetails"), motor);
-                renderQcHardwareDispatch(doc, qcValue(
-                        processDetails, "dispatch", "dispatchDetails"));
+                renderQcHardwareDispatchSection(doc,
+                        qcValue(processDetails, "dispatch", "dispatchDetails"),
+                        qcValue(motor, "attachments"));
                 continue;
             }
 
@@ -4725,7 +4721,9 @@ public class FormPdfService {
                         qcValue(motor, "preheating", "preheatingDetails"), motor);
                 renderQcHardwareRows(doc, "Liner Coating", "LINERCOATING",
                         qcValue(motor, "linerCoating", "linerCoatingDetails"), motor);
-                renderQcHardwareDispatch(doc, qcValue(motor, "dispatch", "dispatchDetails"));
+                renderQcHardwareDispatchSection(doc,
+                        qcValue(motor, "dispatch", "dispatchDetails"),
+                        qcValue(motor, "attachments"));
                 continue;
             }
 
@@ -4742,7 +4740,8 @@ public class FormPdfService {
                     renderQcHardwareRows(
                             doc, "Liner Coating", "LINERCOATING", sectionData, motor);
                 } else if (sectionKey.contains("DISPATCH")) {
-                    renderQcHardwareDispatch(doc, sectionData);
+                    renderQcHardwareDispatchSection(doc, sectionData,
+                            qcValue(motor, "attachments"));
                 }
             }
         }
@@ -4774,34 +4773,41 @@ public class FormPdfService {
 
             List<Map<String, Object>> weights = qcMapList(qcValue(
                     motor, "weights", "weightDetails", "weighmentDetails"));
-            if (weights.isEmpty()) continue;
-
-            PdfPTable weightTable = createTable(new float[]{9, 71, 20});
-            weightTable.setHeaderRows(1);
-            addHeaders(weightTable, "Ref.", "Weight Parameter", "Weight (kg)");
-            boolean alternate = false;
-            for (Map<String, Object> weight : weights) {
-                Color background = alternate ? ROW_ALT : WHITE;
-                String reference = str(qcValue(weight,
-                        "srNo", "reference", "serialNo"));
-                String parameter = str(qcValue(weight,
-                        "weightParameter", "parameter", "description"));
-                Map<String, Object> calculation = qcMap(qcValue(weight, "calculation"));
-                String formula = qcText(qcValue(calculation, "formula"));
-                if (formula == null) formula = qcText(qcValue(weight, "formula"));
-                if (formula != null) {
-                    parameter += "\nFormula: " + formula;
-                    if (Boolean.TRUE.equals(qcValue(calculation, "autoCalculate"))) {
-                        parameter += " (calculated automatically)";
+            if (!weights.isEmpty()) {
+                PdfPTable weightTable = createTable(new float[]{9, 71, 20});
+                weightTable.setHeaderRows(1);
+                addHeaders(weightTable, "Ref.", "Weight Parameter", "Weight (kg)");
+                boolean alternate = false;
+                for (Map<String, Object> weight : weights) {
+                    Color background = alternate ? ROW_ALT : WHITE;
+                    String reference = str(qcValue(weight,
+                            "srNo", "reference", "serialNo"));
+                    String parameter = str(qcValue(weight,
+                            "weightParameter", "parameter", "description"));
+                    Map<String, Object> calculation = qcMap(qcValue(weight, "calculation"));
+                    String formula = qcText(qcValue(calculation, "formula"));
+                    if (formula == null) formula = qcText(qcValue(weight, "formula"));
+                    if (formula != null) {
+                        parameter += "\nFormula: " + formula;
+                        if (Boolean.TRUE.equals(qcValue(calculation, "autoCalculate"))) {
+                            parameter += " (calculated automatically)";
+                        }
                     }
+                    addCell(weightTable, reference, BODY_BOLD, background);
+                    addCell(weightTable, parameter, BODY_FONT, background);
+                    addCell(weightTable, str(qcValue(weight,
+                            "weightKg", "weight", "value")), BODY_FONT, background);
+                    alternate = !alternate;
                 }
-                addCell(weightTable, reference, BODY_BOLD, background);
-                addCell(weightTable, parameter, BODY_FONT, background);
-                addCell(weightTable, str(qcValue(weight,
-                        "weightKg", "weight", "value")), BODY_FONT, background);
-                alternate = !alternate;
+                doc.add(weightTable);
             }
-            doc.add(weightTable);
+            List<Map<String, Object>> uploadedFiles = qcMapList(qcValue(
+                    motor, "uploadedFiles", "attachments"));
+            if (!uploadedFiles.isEmpty()) {
+                addQcEvaluationHeading(doc, "Attachments — Upload Report", 0);
+                renderQcAttachmentRows(doc, null, uploadedFiles, 0);
+            }
+            renderQcQaRemarks(doc, qcValue(motor, "qaRemarks", "qaRemark"));
         }
         return true;
     }
@@ -4834,6 +4840,7 @@ public class FormPdfService {
         }
         renderQcHardwareRows(doc, "First Cut", "CUT", firstCut);
         renderQcHardwareRows(doc, "Second Cut", "CUT", secondCut);
+        renderQcQaRemarks(doc, qcValue(qcHardwareSingleMap(value), "qaRemarks", "qaRemark"));
     }
 
     private void renderQcHardwareRows(
@@ -4862,6 +4869,7 @@ public class FormPdfService {
             rowContext.put(sourceDateTimeField, section.get(sourceDateTimeField));
         }
         renderQcHardwareRows(doc, heading, rowType, qcHardwareRows(value), rowContext);
+        renderQcQaRemarks(doc, qcValue(section, "qaRemarks", "qaRemark"));
     }
 
     private void renderQcHardwareRows(
@@ -5045,29 +5053,51 @@ public class FormPdfService {
         renderQcHardwareAttachments(doc, dispatch);
     }
 
+    private void renderQcHardwareDispatchSection(
+            Document doc,
+            Object dispatchValue,
+            Object attachmentValue) throws DocumentException {
+        renderQcHardwareDispatch(doc, dispatchValue);
+        // Hardware attachments are stored beside dispatch on the motor, not
+        // inside the dispatch section in the QC response.
+        renderQcHardwareAttachments(doc, attachmentValue);
+        renderQcQaRemarks(doc, qcValue(qcHardwareSingleMap(dispatchValue),
+                "qaRemarks", "qaRemark"));
+    }
+
     private void renderQcHardwareAttachments(
             Document doc,
-            Map<String, Object> dispatch) throws DocumentException {
+            Object dispatchValue) throws DocumentException {
+        Map<String, Object> dispatch = qcObjectMap(dispatchValue);
         Object attachmentsValue = qcValue(dispatch,
                 "attachments", "uploadReportGraphPhoto", "uploadedFiles");
-        List<Map<String, Object>> attachmentRows = qcMapList(attachmentsValue);
+        // qcMapList returns an immutable empty list; this list is populated
+        // below when attachments use the uploadReport/uploadGraph/uploadPhoto shape.
+        List<Map<String, Object>> attachmentRows = new ArrayList<>(qcMapList(attachmentsValue));
         if (attachmentRows.isEmpty() && attachmentsValue instanceof Map<?, ?> rawAttachments) {
             Map<String, Object> attachments = stringKeyMap(rawAttachments);
-            for (String type : List.of("Report", "Graph", "Photo")) {
-                Object file = qcValue(attachments, type);
-                if (file != null) {
-                    attachmentRows.add(new LinkedHashMap<>(Map.of(
-                            "attachmentType", type,
-                            "uploadedFiles", file)));
+            for (String[] typeAndKey : List.of(
+                    new String[]{"Report", "uploadReport", "Report"},
+                    new String[]{"Graph", "uploadGraph", "Graph"},
+                    new String[]{"Photo", "uploadPhoto", "Photo"})) {
+                Object file = qcValue(attachments, typeAndKey[1], typeAndKey[2]);
+                if (hasQcDisplayValue(file)) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("attachmentType", typeAndKey[0]);
+                    row.put("uploadedFiles", file);
+                    attachmentRows.add(row);
                 }
             }
         }
         if (attachmentRows.isEmpty()) {
-            for (String type : List.of("Report", "Graph", "Photo")) {
-                Object file = qcValue(dispatch, type, "upload" + type);
-                if (file != null) {
+            for (String[] typeAndKey : List.of(
+                    new String[]{"Report", "uploadReport", "Report"},
+                    new String[]{"Graph", "uploadGraph", "Graph"},
+                    new String[]{"Photo", "uploadPhoto", "Photo"})) {
+                Object file = qcValue(dispatch, typeAndKey[1], typeAndKey[2]);
+                if (hasQcDisplayValue(file)) {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("attachmentType", type);
+                    row.put("attachmentType", typeAndKey[0]);
                     row.put("uploadedFiles", file);
                     attachmentRows.add(row);
                 }
@@ -5279,10 +5309,8 @@ public class FormPdfService {
             String motorId = qcText(qcValue(motor, "motorId", "motorIdNo"));
             if (motorId == null) motorId = "Motor " + (motorIndex + 1);
 
-            Paragraph motorTitle = new Paragraph(motorId + " — NDT", LABEL_FONT);
-            motorTitle.setSpacingBefore(8);
-            motorTitle.setSpacingAfter(4);
-            doc.add(motorTitle);
+            // The division title already identifies this as NDT; avoid a
+            // redundant per-motor "Motor-101 — NDT" heading.
 
             List<Map<String, Object>> radiographyRows = new ArrayList<>();
             List<Map<String, Object>> observationRows = new ArrayList<>();
@@ -5393,6 +5421,30 @@ public class FormPdfService {
         return motor;
     }
 
+    private void removeQcCastingNonReportFields(Map<String, Object> value) {
+        if (value == null || value.isEmpty()) return;
+        List<String> ignored = List.of(
+                "MOTORRECEIVEDAT", "MOTORRECEIVEDDATE", "MOTORRECEIVEDDATETIME",
+                "SETUP", "EMPTYMOTORWEIGHT", "FINALMIXBOWLDETAILS",
+                "INITIALVACUUM", "VACUUMPRESSURECASTING", "VACUUMPRESSURESOAKING");
+        value.entrySet().removeIf(entry -> ignored.contains(normalizePdfKey(entry.getKey())));
+        for (Object nested : value.values()) {
+            if (nested instanceof Map<?, ?> rawMap) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nestedMap = (Map<String, Object>) rawMap;
+                removeQcCastingNonReportFields(nestedMap);
+            } else if (nested instanceof Collection<?> collection) {
+                for (Object item : collection) {
+                    if (item instanceof Map<?, ?> rawMap) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> nestedMap = (Map<String, Object>) rawMap;
+                        removeQcCastingNonReportFields(nestedMap);
+                    }
+                }
+            }
+        }
+    }
+
     private boolean renderQcMotorProcessDivision(
             Document doc,
             String divisionKey,
@@ -5422,6 +5474,23 @@ public class FormPdfService {
             Map<String, Object> motor = qcMergedMotorDetails(sourceMotor);
             motor.remove("motorIdNo");
             motor.remove("motorId");
+            if ("DECORING".equals(divisionKey)) {
+                renderQcDivisionMap(doc, "De-coring Details", motor, 0);
+                continue;
+            }
+            if ("CASTING".equals(divisionKey)) {
+                Map<String, Object> setup = qcMap(qcValue(motor, "setup"));
+                Object castingType = qcValue(setup, "castingType");
+                removeQcCastingNonReportFields(motor);
+                if (hasQcDisplayValue(castingType)) {
+                    PdfPTable castingTypeTable = createTable(new float[]{34, 66});
+                    addCell(castingTypeTable, "Type of Casting", BODY_BOLD, ROW_ALT);
+                    addCell(castingTypeTable, qcDisplayValue(castingType), BODY_FONT, WHITE);
+                    doc.add(castingTypeTable);
+                }
+                renderQcCastingSections(doc, motorId, motor);
+                continue;
+            }
             String motorDetailsHeading = switch (divisionKey) {
                 case "CURING" -> "Curing Configuration";
                 case "DECORING" -> "De-coring Details";
@@ -5434,6 +5503,22 @@ public class FormPdfService {
                     0);
         }
         return true;
+    }
+
+    private void renderQcCastingSections(Document doc, String motorId, Map<String, Object> motor)
+            throws DocumentException {
+        Map<String, Object> sections = qcMap(qcValue(motor, "castingSections", "sections"));
+        renderQcCastingSection(doc, "Final Assembly", qcValue(sections, "finalAssemblyDetails"));
+        renderQcCastingSection(doc, "Propellant Casting", qcValue(sections, "castingProcess"));
+        Object weighment = qcValue(sections, "weightmentDetails", "weighmentDetails");
+        renderQcCastingSection(doc, "Weighment Details", weighment);
+        renderQcCastingSection(doc, "Post Cast Operations", qcValue(sections, "postCastOperations"));
+    }
+
+    private void renderQcCastingSection(Document doc, String title, Object section)
+            throws DocumentException {
+        if (!hasQcDisplayValue(section)) return;
+        renderQcEvaluationValue(doc, title, section, 0);
     }
 
     private void renderQcEvaluationValue(
@@ -5510,7 +5595,12 @@ public class FormPdfService {
         Map<String, Object> scalarFields = new LinkedHashMap<>();
         Map<String, Object> attachmentFields = new LinkedHashMap<>();
         Map<String, Object> nestedFields = new LinkedHashMap<>();
+        Object qaRemarks = null;
         for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (normalizePdfKey(entry.getKey()).endsWith("QAREMARKS")) {
+                qaRemarks = entry.getValue();
+                continue;
+            }
             if (isQcWorkflowField(entry.getKey()) || !hasQcDisplayValue(entry.getValue())) continue;
             if (isQcInlineEvaluationValue(entry.getValue())) {
                 if (isQcAttachmentField(entry.getKey())) {
@@ -5537,6 +5627,7 @@ public class FormPdfService {
                         only.getValue(),
                         depth);
                 renderQcEvaluationAttachments(doc, attachmentFields, depth);
+                renderQcQaRemarks(doc, qaRemarks);
                 return;
             }
         }
@@ -5552,6 +5643,9 @@ public class FormPdfService {
                     nested.getValue(), depth + 1);
         }
         renderQcEvaluationAttachments(doc, attachmentFields, depth);
+        // QA remarks belong to this section, so keep them directly after its
+        // rendered fields/table instead of collecting them at division level.
+        renderQcQaRemarks(doc, qaRemarks);
     }
 
     private void renderQcEvaluationAttachments(
@@ -5559,8 +5653,23 @@ public class FormPdfService {
             Map<String, Object> attachmentFields,
             int depth) throws DocumentException {
         for (Map.Entry<String, Object> attachment : attachmentFields.entrySet()) {
+            List<Map<String, Object>> files = qcMapList(attachment.getValue());
+            if (!files.isEmpty() && files.stream().allMatch(file ->
+                    qcValue(file, "fileId", "fileName") != null)) {
+                renderQcAttachmentRows(doc, qcEvaluationTitle(attachment.getKey()), files, depth + 1);
+                continue;
+            }
             addQcEvaluationHeading(doc, qcEvaluationTitle(attachment.getKey()), depth + 1);
-            doc.add(new Paragraph(qcEvaluationCellValue(attachment.getValue()), BODY_FONT));
+            PdfPTable table = createTable(new float[]{30, 70});
+            addHeaders(table, "Property", "Value");
+            Map<String, Object> file = qcObjectMap(attachment.getValue());
+            for (Map.Entry<String, Object> field : file.entrySet()) {
+                String key = normalizePdfKey(field.getKey());
+                if (java.util.Set.of("FILEID", "FILEURL", "MIMETYPE", "READONLY").contains(key)) continue;
+                addCell(table, qcColumnLabel(field.getKey()), BODY_BOLD, ROW_ALT);
+                addCell(table, qcDisplayValue(field.getValue()), BODY_FONT, WHITE);
+            }
+            if (table.size() > 1) doc.add(table);
         }
     }
 
@@ -5595,7 +5704,10 @@ public class FormPdfService {
         java.util.LinkedHashSet<String> columns = new java.util.LinkedHashSet<>();
         for (Map<String, Object> row : rows) {
             for (Map.Entry<String, Object> entry : row.entrySet()) {
-                if (!isQcWorkflowField(entry.getKey())
+                // Row-level QA remarks are part of the inspection record and
+                // belong in the same table row as their measurements.
+                if ((!isQcWorkflowField(entry.getKey())
+                        || "QAREMARKS".equals(normalizePdfKey(entry.getKey())))
                         && hasQcDisplayValue(entry.getValue())
                         && isQcInlineEvaluationValue(entry.getValue())) {
                     columns.add(entry.getKey());
@@ -5611,6 +5723,10 @@ public class FormPdfService {
 
         addQcEvaluationHeading(doc, heading, depth);
         List<String> allColumns = new ArrayList<>(columns);
+        allColumns.removeIf(column -> "QAREMARKS".equals(normalizePdfKey(column)));
+        if (rows.stream().anyMatch(row -> hasQcDisplayValue(qcValue(row, "qaRemarks")))) {
+            allColumns.add("qaRemarks");
+        }
         if (allColumns.size() <= 9) {
             renderQcEvaluationTable(doc, rows, allColumns);
         } else {
@@ -5717,7 +5833,10 @@ public class FormPdfService {
         for (Map<String, Object> row : rows) {
             Color background = alternate ? ROW_ALT : WHITE;
             for (String column : columns) {
-                addCell(table, qcEvaluationCellValue(row.get(column)), BODY_FONT, background);
+                String value = "MATERIALTYPE".equals(normalizePdfKey(column))
+                        ? qcMaterialTypeLabel(row.get(column))
+                        : qcEvaluationCellValue(row.get(column));
+                addCell(table, value, BODY_FONT, background);
             }
             alternate = !alternate;
         }
@@ -5910,30 +6029,6 @@ public class FormPdfService {
         itemTitle.setSpacingAfter(4);
         doc.add(itemTitle);
 
-        Map<String, Object> summaryFields = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> field : item.entrySet()) {
-            String key = normalizePdfKey(field.getKey());
-            if (isQcWorkflowField(field.getKey())
-                    || java.util.Set.of(
-                    "SRNO", "RAWMATERIAL", "MATERIALNAME", "INGREDIENT",
-                    "MATERIALID", "MATERIALCODE", "GRADEID", "GRADE", "GRADECODE",
-                    "MATERIALGRADE", "SCHEMAVERSION", "SCHEMATYPE",
-                    "OPERATION", "PROCESS", "OPERATIONNAME", "PARAMETERS",
-                    "QCCHECKS", "QUALITYCHECKS", "QCCERTIFICATE", "CERTIFICATES",
-                    "ATTACHMENTS", "FILEPATHS", "SECTIONS").contains(key)) {
-                continue;
-            }
-            if (isQcScalarValue(field.getValue()) && hasQcDisplayValue(field.getValue())) {
-                summaryFields.put(field.getKey(), field.getValue());
-            }
-        }
-        if (!summaryFields.isEmpty()) {
-            addQcEvaluationHeading(doc,
-                    operation != null ? operation : "Processing Details", 0);
-            renderQcEvaluationTable(
-                    doc, List.of(summaryFields), new ArrayList<>(summaryFields.keySet()));
-        }
-
         List<Map<String, Object>> checks = new ArrayList<>();
         appendQcMaps(checks, qcValue(item, "parameters", "qcChecks", "qualityChecks"));
         renderQcProcessingChecks(doc, checks);
@@ -5952,9 +6047,6 @@ public class FormPdfService {
                 String sectionHeading = sectionId == null
                         ? "Processing Details" : qcProcessingSectionTitle(sectionId);
                 if (!checks.isEmpty() && isQcProcessingChecksKey(sectionHeading)) continue;
-                if (!summaryFields.isEmpty() && sameQcHeading(operation, sectionHeading)) {
-                    sectionHeading = null;
-                }
                 renderQcProcessingSectionValue(
                         doc,
                         sectionHeading,
@@ -5962,6 +6054,13 @@ public class FormPdfService {
                         0);
             }
         }
+    }
+
+    private String qcMaterialTypeLabel(Object value) {
+        String materialType = str(value);
+        if (materialType == null || materialType.isBlank()) return "—";
+        materialType = materialType.trim().replaceFirst("(?i)^DEFAULT[_\\s-]*", "");
+        return prettyText(materialType);
     }
 
     private void renderQcProcessingSectionValue(
@@ -6086,7 +6185,10 @@ public class FormPdfService {
         int fieldCount = 0;
         for (Map.Entry<String, Object> field : fields.entrySet()) {
             addCell(table, qcColumnLabel(field.getKey()), BODY_BOLD, ROW_ALT);
-            addCell(table, qcDisplayValue(field.getValue()), BODY_FONT, WHITE);
+            String value = "MATERIALTYPE".equals(normalizePdfKey(field.getKey()))
+                    ? qcMaterialTypeLabel(field.getValue())
+                    : qcDisplayValue(field.getValue());
+            addCell(table, value, BODY_FONT, WHITE);
             fieldCount++;
         }
         if (fieldCount % 2 != 0) {
@@ -6257,6 +6359,76 @@ public class FormPdfService {
         doc.add(table);
     }
 
+    private void renderQcDivisionMotorStatusSummary(
+            Document doc,
+            QcDivisionFormResponse data) throws DocumentException {
+        List<DivisionDetailDto> details = data.getDivisionDetails() == null
+                ? Collections.emptyList() : data.getDivisionDetails();
+        List<DivisionStatusDto> divisionStatuses = data.getDivisionStatuses() == null
+                ? Collections.emptyList() : data.getDivisionStatuses();
+        List<QcMotorStatusDto> motorStatuses = data.getMotorStatuses() == null
+                ? Collections.emptyList() : data.getMotorStatuses();
+
+        LinkedHashMap<String, String[]> divisions = new LinkedHashMap<>();
+        for (DivisionDetailDto detail : details) {
+            if (detail == null) continue;
+            String division = qcEffectiveDivision(detail.getDivision(), detail.getSubType());
+            String key = normalizePdfKey(division);
+            if (!key.isBlank()) {
+                Object status = detail.getDivisionSubmissionStatus() != null
+                        ? detail.getDivisionSubmissionStatus() : detail.getStatus();
+                // The detail embedded in the form can lag behind the current
+                // division status summary. Keep it as a fallback only.
+                divisions.putIfAbsent(key, new String[]{division, workflowStatusLabel(status)});
+            }
+        }
+        for (DivisionStatusDto status : divisionStatuses) {
+            if (status == null) continue;
+            String key = normalizePdfKey(status.getDivision());
+            if (!key.isBlank()) divisions.put(key, new String[]{
+                    status.getDivision(), workflowStatusLabel(status.getStatus())});
+        }
+        for (QcMotorStatusDto motor : motorStatuses) {
+            if (motor == null) continue;
+            String division = qcEffectiveDivision(motor.getDivision(), motor.getSubType());
+            String key = normalizePdfKey(division);
+            if (!key.isBlank()) divisions.putIfAbsent(key, new String[]{division, "-"});
+        }
+        if (divisions.isEmpty()) return;
+
+        addSection(doc, "Division and Motor Status", "");
+        PdfPTable table = createTable(new float[]{34, 25, 20, 21});
+        table.setHeaderRows(1);
+        addHeaders(table, "Division", "Motor", "Motor Status", "Division Status");
+        boolean alternate = false;
+        for (Map.Entry<String, String[]> entry : divisions.entrySet()) {
+            String key = entry.getKey();
+            String[] info = entry.getValue();
+            List<QcMotorStatusDto> matching = motorStatuses.stream()
+                    .filter(Objects::nonNull)
+                    .filter(motor -> key.equals(normalizePdfKey(
+                            qcEffectiveDivision(motor.getDivision(), motor.getSubType()))))
+                    .toList();
+            if (matching.isEmpty()) {
+                addCell(table, qcDivisionDisplayName(info[0]), BODY_FONT, alternate ? ROW_ALT : WHITE);
+                addCell(table, "-", BODY_FONT, alternate ? ROW_ALT : WHITE);
+                addCell(table, "-", BODY_FONT, alternate ? ROW_ALT : WHITE);
+                addWorkflowStatusCell(table, info[1]);
+                alternate = !alternate;
+                continue;
+            }
+            for (QcMotorStatusDto motor : matching) {
+                Color background = alternate ? ROW_ALT : WHITE;
+                addCell(table, qcDivisionDisplayName(info[0]), BODY_FONT, background);
+                addCell(table, str(motor.getMotorId()), BODY_FONT, background);
+                addWorkflowStatusCell(table, motor.getMotorSubmissionStatus());
+                addWorkflowStatusCell(table, info[1]);
+                alternate = !alternate;
+            }
+        }
+        doc.add(table);
+    }
+
     private void renderQcUnitStatusSummaries(
             Document doc,
             QcDivisionFormResponse data) throws DocumentException {
@@ -6376,7 +6548,12 @@ public class FormPdfService {
 
         Map<String, Object> scalarFields = new LinkedHashMap<>();
         Map<String, Object> nestedFields = new LinkedHashMap<>();
+        Object qaRemarks = null;
         for (Map.Entry<String, Object> entry : value.entrySet()) {
+            if (normalizePdfKey(entry.getKey()).endsWith("QAREMARKS")) {
+                qaRemarks = entry.getValue();
+                continue;
+            }
             if (isQcWorkflowField(entry.getKey()) || !hasQcDisplayValue(entry.getValue())) {
                 continue;
             }
@@ -6388,7 +6565,7 @@ public class FormPdfService {
             }
         }
 
-        if (scalarFields.isEmpty() && nestedFields.isEmpty()) return;
+        if (scalarFields.isEmpty() && nestedFields.isEmpty() && !hasQcDisplayValue(qaRemarks)) return;
         addQcDivisionHeading(doc, heading, depth);
 
         if (!scalarFields.isEmpty()) {
@@ -6403,6 +6580,7 @@ public class FormPdfService {
         for (Map.Entry<String, Object> nested : nestedFields.entrySet()) {
             renderQcDivisionValue(doc, nested.getKey(), nested.getValue(), depth + 1);
         }
+        renderQcQaRemarks(doc, qaRemarks);
     }
 
     private void addQcDivisionHeading(Document doc, String heading, int depth)
@@ -6469,9 +6647,11 @@ public class FormPdfService {
                         "MOTORSUBMISSIONTYPE", "MOTORSUBMISSIONSTATUS",
                         "PREMIXSUBMISSIONTYPE", "PREMIXSUBMISSIONSTATUS",
                         "DIVISIONSUBMISSIONTYPE", "DIVISIONSUBMISSIONSTATUS",
+                        "QAREMARKS", "LOTDETAILSQAREMARKS",
                         "SUBMITTEDBY", "SUBMITTEDAT", "APPROVEDBY", "APPROVEDAT",
                         "ACTIONBY", "ACTIONAT", "UPDATEDBY", "UPDATEDAT")
-                .contains(normalizePdfKey(key));
+                .contains(normalizePdfKey(key))
+                || normalizePdfKey(key).endsWith("QAREMARKS");
     }
 
     private String qcDisplayValue(Object value) {
@@ -6522,7 +6702,7 @@ public class FormPdfService {
         // ==========================================
         // 1. MASTER METADATA SUMMARY HEADER
         // ==========================================
-        addSection(doc, "Quality Control Division Inspection Report", "");
+        addSection(doc, "Quality Assurance Division Inspection Report", "");
 
         PdfPTable metaTable = createTable(new float[]{20, 30, 20, 30});
         addCell(metaTable, "Batch ID", BODY_BOLD, ROW_ALT);
@@ -6798,37 +6978,33 @@ public class FormPdfService {
         }
 
         addSection(doc, "Batch information", "");
-        PdfPTable metaTable = createTable(new float[]{22, 28, 22, 28});
-        addCell(metaTable, "Batch ID", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getBatchId()), BODY_FONT, WHITE);
-        addCell(metaTable, "Form ID", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getFormId()), BODY_FONT, WHITE);
-        addCell(metaTable, "Status", BODY_BOLD, ROW_ALT);
-        addWorkflowStatusCell(metaTable, data.getFormStatus());
-        addCell(metaTable, "Submission Type", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, workflowStatusLabel(data.getFormSubmissionType()), BODY_FONT, WHITE);
-        addCell(metaTable, "Created by", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getCreatedBy()), BODY_FONT, WHITE);
-        addCell(metaTable, "Created On", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getCreatedAt()), BODY_FONT, WHITE);
-        addCell(metaTable, "Submitted By", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, qcPersonName(data.getSubmittedBy()), BODY_FONT, WHITE);
-        addCell(metaTable, "Submitted On", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getSubmittedAt()), BODY_FONT, WHITE);
-        addCell(metaTable, "Last Updated By", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, qcPersonName(data.getUpdatedBy()), BODY_FONT, WHITE);
-        addCell(metaTable, "Last Updated On", BODY_BOLD, ROW_ALT);
-        addCell(metaTable, str(data.getUpdatedAt()), BODY_FONT, WHITE);
+        PdfPTable metaTable = createTable(new float[]{25, 25, 25, 25});
+        addInfoStripCell(metaTable, "Batch ID", str(data.getBatchId()));
+        addInfoStripCell(metaTable, "Form ID", str(data.getFormId()));
+        addInfoStripCell(metaTable, "Submission Type", workflowStatusLabel(data.getFormSubmissionType()));
+        addInfoStripCell(metaTable, "Submitted By", qcPersonName(data.getSubmittedBy()));
+        Paragraph formStatusParagraph = new Paragraph();
+        formStatusParagraph.add(new Chunk("Form Status: ",
+                new Font(Font.HELVETICA, 8, Font.BOLD, Color.BLACK)));
+        formStatusParagraph.add(new Chunk(workflowStatusLabel(data.getFormStatus()),
+                new Font(Font.HELVETICA, 8, Font.BOLD,
+                        workflowStatusColor(data.getFormStatus()))));
+        PdfPCell formStatusCell = new PdfPCell();
+        formStatusCell.addElement(formStatusParagraph);
+        formStatusCell.setColspan(4);
+        formStatusCell.setPadding(6);
+        formStatusCell.setBackgroundColor(ROW_ALT);
+        formStatusCell.setBorderColor(BORDER_LIGHT);
+        metaTable.addCell(formStatusCell);
         doc.add(metaTable);
         spacer(doc, 8);
 
-        addSection(doc, "Static Testing Facility (STF) Evaluation Report",
-                "Typed motor evaluation details");
+        addSection(doc, "Static Testing Facility (STF) Evaluation Report", "");
 
         for (StaticMotorData motorOuter : data.getMotors()) {
             String motorId = motorOuter.getMotorId();
             MotorStatusResponse savedMotorStatus = findMotorStatus(data.getMotorStatuses(), motorId);
-            addMotorStatusHeader(
+            addPlainMotorStatusHeader(
                     doc,
                     motorId,
                     savedMotorStatus != null
@@ -6837,7 +7013,8 @@ public class FormPdfService {
 
             PdfPTable identity = createTable(new float[]{25, 25, 25, 25});
             addCell(identity, "Motor Type", BODY_BOLD, ROW_ALT);
-            addCell(identity, str(motorOuter.getSubType()), BODY_FONT, WHITE);
+            addCell(identity, motorOuter.getSubType() != null
+                    ? prettyText(motorOuter.getSubType().toString()) : "-", BODY_FONT, WHITE);
             addCell(identity, "STF Test No.", BODY_BOLD, ROW_ALT);
             addCell(identity, str(motorOuter.getStfTestNo()), BODY_FONT, WHITE);
             doc.add(identity);
@@ -6888,14 +7065,15 @@ public class FormPdfService {
                 "Typed motor evaluation details");
 
         String motorId = data.getMotorId();
-        addMotorStatusHeader(
+        addPlainMotorStatusHeader(
                 doc,
                 motorId,
                 data.getStatus());
 
         PdfPTable identity = createTable(new float[]{25, 25, 25, 25});
         addCell(identity, "Motor Type", BODY_BOLD, ROW_ALT);
-        addCell(identity, str(data.getSubType()), BODY_FONT, WHITE);
+        addCell(identity, data.getSubType() != null
+                ? prettyText(data.getSubType().toString()) : "-", BODY_FONT, WHITE);
         addCell(identity, "STF Test No.", BODY_BOLD, ROW_ALT);
         addCell(identity, str(data.getStfTestNo()), BODY_FONT, WHITE);
         doc.add(identity);
@@ -7008,7 +7186,7 @@ public class FormPdfService {
         if (details == null) return;
         // Match UI: header fields without a "Test Header" section title.
         PdfPTable table = createTable(new float[]{14, 14, 14, 12, 10, 14, 22});
-        addHeaders(table, "Loading No.", "Firing No.", "Firing Date/Time", "Temp", "RH", "Wt. of Grain", "Grain Config");
+        addHeaders(table, "Loading No.", "Firing No.", "Firing Date & Time", "Temp", "RH", "Wt. of Grain", "Grain Config");
         addCell(table, str(details.getLoadingNo()), BODY_FONT, WHITE);
         addCell(table, str(details.getFiringNo()), BODY_FONT, WHITE);
         addCell(table, str(details.getFiringDateTime()), BODY_FONT, WHITE);
@@ -7195,8 +7373,8 @@ public class FormPdfService {
             addSection(doc, "Dispatch Setup", "");
             PdfPTable setup = createKeyValueTable();
             addKV(setup, "Stage", dispatchDisplay(dispatch.getStage()));
-            addKV(setup, "Date of Casting", str(dispatch.getCastingDate()));
-            addKV(setup, "Dispatch Date", str(dispatch.getDispatchDate()));
+            addKV(setup, "Date & Time of Casting", str(dispatch.getCastingDate()));
+            addKV(setup, "Date & Time of Dispatch", str(dispatch.getDispatchDate()));
             addKV(setup, "Dispatch Location", str(dispatch.getDispatchLocation()));
             addKV(setup, "NDT Clearance Accorded",
                     dispatchYesNo(ndtClearance != null ? ndtClearance.getAccorded() : null));
@@ -7650,6 +7828,16 @@ public class FormPdfService {
         addWorkflowUnitHeader(doc, "Motor · " + str(motorId), status);
     }
 
+    private void addPlainMotorStatusHeader(Document doc, String motorId, Object status)
+            throws DocumentException {
+        Paragraph motorTitle = new Paragraph();
+        motorTitle.add(new Chunk("Motor · " + str(motorId) + "   ", SECTION_FONT));
+        motorTitle.add(createStatusPhrase(workflowStatusLabel(status)));
+        motorTitle.setSpacingBefore(10);
+        motorTitle.setSpacingAfter(6);
+        doc.add(motorTitle);
+    }
+
     /**
      * Renders a workflow unit name and its status as one banner. Statuses must not be
      * passed through {@link #addSection(Document, String, String)}, whose subtitle is
@@ -7723,7 +7911,7 @@ public class FormPdfService {
             case "APPROVED", "COMPLETELY_APPROVED", "COMPLETED" -> PASS_GREEN;
             case "REJECTED" -> FAIL_RED;
             case "WAITING_FOR_APPROVAL", "WAITING_FOR_PARTIAL_APPROVAL",
-                 "WAITING_FOR_COMPLETE_APPROVAL" -> new Color(230, 126, 34);
+                 "WAITING_FOR_COMPLETE_APPROVAL" -> STATUS_PENDING;
             case "IN_PROGRESS", "DRAFT" -> BRAND_BLUE;
             default -> PENDING_GRAY;
         };
@@ -8042,7 +8230,7 @@ public class FormPdfService {
             case 8 -> "Subscale";
             case 9 -> "Trimming";
             case 10 -> "NDT Report";
-            case 11 -> "Quality Control";
+            case 11 -> "Quality Assurance";
             case 12 -> "Static Test Facility";
             case 13 -> "Dispatch";
             default -> "QC Form";
@@ -8078,7 +8266,10 @@ public class FormPdfService {
     private Phrase createStatusPhrase(String status) {
         Color color = getStatusColor(status);
         Font statusFont = new Font(Font.HELVETICA, 8, Font.BOLD, color);
-        return new Phrase(str(status), statusFont);
+        String label = status == null || status.isBlank() || "-".equals(status.trim())
+                ? "-"
+                : workflowStatusLabel(status);
+        return new Phrase(label, statusFont);
     }
 
     /**

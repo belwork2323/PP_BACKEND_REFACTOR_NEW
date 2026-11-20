@@ -28,7 +28,7 @@ class FormPdfServiceDispatchTest {
         DispatchService dispatchService = mock(DispatchService.class);
         FormPdfService service = new FormPdfService(
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, dispatchService, new ObjectMapper(), null, null, null);
+                null, null, null, dispatchService, new ObjectMapper(), null, null, null, null);
         DocumentDto certificate = new DocumentDto(
                 "FILE_fd9bb4dc-9760-4111-9e8f-8769ea83fa7f",
                 "SUCCESS",

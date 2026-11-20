@@ -34,7 +34,7 @@ class FormPdfServiceCastingCuringTest {
                 null, null, null, null, new ObjectMapper()
                         .registerModule(new JavaTimeModule())
                         .registerModule(new JacksonDateTimeConfig().flexibleDateInputModule()),
-                null, null, null);
+                null, null, null, null);
         CuringCycle cycle = CuringCycle.builder()
                 .srNo(1)
                 .temperature(BigDecimal.valueOf(80))

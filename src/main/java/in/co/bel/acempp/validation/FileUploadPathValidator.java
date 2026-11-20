@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -27,11 +29,16 @@ public class FileUploadPathValidator {
 
         log.info("Validating file upload directory at: {}", path);
 
-        // 1. Check existence
+        // Create the configured directory when it is missing so fresh deployments
+        // and test environments do not need a machine-specific setup step.
         if (!directory.exists()) {
-            String errorMsg = String.format("CRITICAL: Upload directory '%s' does not exist! Please create the folder before starting the application.", path);
-            log.error(errorMsg);
-            throw new IllegalStateException(errorMsg);
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                String errorMsg = String.format("CRITICAL: Could not create upload directory '%s'.", path);
+                log.error(errorMsg, e);
+                throw new IllegalStateException(errorMsg, e);
+            }
         }
 
         // 2. Check if it's actually a directory

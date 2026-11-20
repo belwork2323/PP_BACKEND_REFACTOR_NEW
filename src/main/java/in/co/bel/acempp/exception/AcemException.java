@@ -19,4 +19,5 @@ public class AcemException extends RuntimeException {
         this.errorCode = errorCode;
         this.details = details;
     }
+
 }

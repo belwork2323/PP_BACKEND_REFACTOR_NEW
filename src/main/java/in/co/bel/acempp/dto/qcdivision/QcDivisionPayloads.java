@@ -744,6 +744,8 @@ public final class QcDivisionPayloads {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class QcFinalAssemblyDetails {
+        @JsonAlias({"finalAssemblyDate", "dateOfFinalAssembly"})
+        private LocalDate date;
         private List<QcMotorCasing> motorCasing;
         /** QA section remarks (QC-entered). */
         private String qaRemarks;
@@ -806,6 +808,10 @@ public final class QcDivisionPayloads {
     @lombok.AllArgsConstructor
     public static class QcCastingProcess {
         private LocalDate dateOfCasting;
+        @JsonDeserialize(using = BigDecimalValue.class)
+        private BigDecimal rh;
+        @JsonDeserialize(using = BigDecimalValue.class)
+        private BigDecimal vacuumMaintained;
         private List<QcFinalMixBowlDetail> finalMixBowlDetails;
         private List<QcCastingFromBowlDetail> castingFromBowlDetails;
         @JsonDeserialize(using = BigDecimalValue.class)
