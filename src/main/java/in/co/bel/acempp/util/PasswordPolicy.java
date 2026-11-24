@@ -4,6 +4,7 @@ import in.co.bel.acempp.enums.ErrorCode;
 import in.co.bel.acempp.exception.AcemException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,18 +19,16 @@ public final class PasswordPolicy {
 
     public static final int HISTORY_LIMIT = 3;
     public static final String SPECIAL_CHARS = "@#$%^&+=!";
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("ddMMyyyy");
-
+    private static final String RANDOM_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    private static final int RANDOM_SUFFIX_LENGTH = 6;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private PasswordPolicy() {}
 
     public static String generateDefaultPassword(String userId) {
-        return generateDefaultPassword(userId, LocalDate.now());
-    }
-
-    public static String generateDefaultPassword(String userId, LocalDate date) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("UserId cannot be empty");
         }
+
         String cleanUserId = userId.trim();
         int maxUserIdLength = 11;
         if (cleanUserId.length() > maxUserIdLength) {
@@ -37,11 +36,20 @@ public final class PasswordPolicy {
         }
 
         String base = cleanUserId.toLowerCase();
-        String formatted = Character.toUpperCase(base.charAt(0)) + base.substring(1);
+        String formatted = Character.toUpperCase(base.charAt(0))
+                + (base.length() > 1 ? base.substring(1) : "");
 
-        return formatted + "@" + date.format(DATE_FMT);
+        return formatted + "@" + randomSuffix(RANDOM_SUFFIX_LENGTH);
     }
 
+    private static String randomSuffix(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            int idx = SECURE_RANDOM.nextInt(RANDOM_CHARS.length());
+            sb.append(RANDOM_CHARS.charAt(idx));
+        }
+        return sb.toString();
+    }
     public static void validateStrength(String password) {
         if (password == null || password.length() < 8) {
             throw new AcemException(ErrorCode.INVALID_REQUEST,

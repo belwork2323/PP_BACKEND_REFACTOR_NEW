@@ -167,6 +167,7 @@ public class StageProgressDisplayEnricher {
                     .subType(status.getSubType())
                     .motorSubmissionType(submissionType)
                     .motorSubmissionStatus(submissionStatus)
+                    .rejectionReason(status.getRejectionReason())
                     .locked(discarded
                             || (subDepartmentId == null
                             ? MainBatchStageProgressHelper.isUnitLocked(

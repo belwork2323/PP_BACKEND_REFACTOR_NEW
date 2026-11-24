@@ -201,11 +201,13 @@ public class TrimmingService {
             for (MotorDTO incoming : incomingMotors) {
                 MotorDTO existing = existingMotorMap.get(incoming.getMotorId());
                 if (existing == null || !isProtectedMotor(existing)) {
+                    incoming.setRejectionReason(null);
                     existingMotorMap.put(incoming.getMotorId(), incoming);
                 }
             }
 
             List<MotorDTO> updatedMotors = new ArrayList<>(existingMotorMap.values());
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             Status batchStatus = calculateBatchStatus(updatedMotors, totalRequiredMotors(batch));
 
             Set<String> existingDbFileIds = extractTrimmingFileIds(form.getMotors());
@@ -365,17 +367,25 @@ public class TrimmingService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         LocalDateTime now = LocalDateTime.now();
         form.setUpdatedBy(PersonInfo.builder().fullName(approverUserId).build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(form.getMotors()));
 
         Batch batch = getBatch(form.getBatchId());
         int totalMotorCount = totalRequiredMotors(batch);
         Status batchStatus = calculateBatchStatus(form.getMotors(), totalMotorCount);
         form.setStatus(batchStatus);
+        if (batchStatus == Status.COMPLETELY_APPROVED) {
+            form.setRejectionReason(null);
+        }
 
         if (request.getActionType() == Status.APPROVED) {
             fileReadOnlyService.markReadOnly(form.getSubDepartmentId(), extractMotorFileIds(motor));
@@ -624,10 +634,23 @@ public class TrimmingService {
                             ? Status.IN_PROGRESS
                             : Status.WAITING_FOR_APPROVAL
             );
+            motorDto.setRejectionReason(null);
 
             motorsById.put(motorId, motorDto);
         }
         return new ArrayList<>(motorsById.values());
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<MotorDTO> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(MotorDTO::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private List<MotorStatusResponse> buildFullMotorStatuses(
@@ -656,6 +679,7 @@ public class TrimmingService {
                     .motorId(motorId)
                     .motorSubmissionType(Status.valueOf(motor.getMotorSubmissionType().toUpperCase()))
                     .motorSubmissionStatus(motor.getMotorSubmissionStatus())
+                    .rejectionReason(motor.getRejectionReason())
                     .build());
         }
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);

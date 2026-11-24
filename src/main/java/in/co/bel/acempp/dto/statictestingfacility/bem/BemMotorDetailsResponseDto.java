@@ -18,6 +18,7 @@ public class BemMotorDetailsResponseDto {
     private String bemNo;
     private StfMotorSubType subType;
     private Status status;
+    private String rejectionReason;
     private BemStaticTestingDetails staticTestingDetails;
     private PersonInfo createdBy;
     private LocalDateTime createdAt;

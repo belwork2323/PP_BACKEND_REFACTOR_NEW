@@ -19,4 +19,5 @@ public class MotorStatusResponse {
 
     private Status motorSubmissionStatus;
     private Boolean locked;
+    private String rejectionReason;
 }

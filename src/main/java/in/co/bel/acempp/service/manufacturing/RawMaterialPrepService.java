@@ -273,6 +273,7 @@ public class RawMaterialPrepService {
                     }
                     existing.setPremixSubmissionType(premixRequest.getPremixSubmissionType());
                     existing.setPremixSubmissionStatus(newPremixStatus);
+                    existing.setRejectionReason(null);
                 }
             } else {
                 Status newPremixStatus = premixRequest.getPremixSubmissionType() == Status.DRAFT
@@ -285,12 +286,15 @@ public class RawMaterialPrepService {
                         .materialType(premixRequest.getMaterialType())
                         .premixSubmissionType(premixRequest.getPremixSubmissionType())
                         .premixSubmissionStatus(newPremixStatus)
+                        .rejectionReason(null)
                         .solidProcess(mapMaterialProcessList(premixRequest.getSolidProcess()))
                         .liquidProcess(mapMaterialProcessList(premixRequest.getLiquidProcess()))
                         .build();
                 updatedPremixes.add(newPremix);
             }
         }
+
+        form.setRejectionReason(resolveFormRejectionReasonFromPremixes(updatedPremixes));
 
         // 4. Calculate dynamic batch status
         // If the user triggered final form SUBMIT, force status to WAITING_FOR_COMPLETE_APPROVAL
@@ -438,6 +442,7 @@ public class RawMaterialPrepService {
                     pr.setMaterialType(p.getMaterialType());
                     pr.setPremixSubmissionType(p.getPremixSubmissionType());
                     pr.setPremixSubmissionStatus(p.getPremixSubmissionStatus());
+                    pr.setRejectionReason(p.getRejectionReason());
                     pr.setSolidProcess(mapMaterialProcessListToEntity(p.getSolidProcess()));
                     pr.setLiquidProcess(mapMaterialProcessListToEntity(p.getLiquidProcess()));
                     return pr;
@@ -875,7 +880,6 @@ public class RawMaterialPrepService {
         form.setUpdatedBy(PersonInfo.builder().fullName(approverName).build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
 
         Batch batch = batchRepo.findByBatchId(form.getBatchId())
                 .orElseThrow(() -> new AcemException(ErrorCode.BATCH_NOT_FOUND, "Batch not found"));
@@ -888,6 +892,12 @@ public class RawMaterialPrepService {
                 .count();
         boolean isFirstPremixApproval = (currentlyApprovedCount == 0);
         premix.setPremixSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            premix.setRejectionReason(request.getRejectionReason());
+        } else {
+            premix.setRejectionReason(null);
+        }
+        form.setRejectionReason(resolveFormRejectionReasonFromPremixes(premixes));
         Status batchStatus = calculateBatchStatus(premixes, totalRequiredPremixes);
         form.setStatus(batchStatus);
 
@@ -1195,10 +1205,23 @@ public class RawMaterialPrepService {
 
                 .premixSubmissionType(request.getPremixSubmissionType())
                 .premixSubmissionStatus(premixStatus)
+                .rejectionReason(null)
 
                 .solidProcess(mapMaterialProcessList(request.getSolidProcess()))
                 .liquidProcess(mapMaterialProcessList(request.getLiquidProcess()))
                 .build();
+    }
+
+    private static String resolveFormRejectionReasonFromPremixes(List<Premix> premixes) {
+        if (premixes == null) {
+            return null;
+        }
+        return premixes.stream()
+                .filter(p -> p != null && p.getPremixSubmissionStatus() == Status.REJECTED)
+                .map(Premix::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private void validateMaterials(PreparationDetailsRequest details) {

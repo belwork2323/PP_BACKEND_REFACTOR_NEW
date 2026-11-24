@@ -859,7 +859,7 @@ public class BatchService {
 
 
         long inProgress = batches.stream()
-                .filter(batch -> batch.getCurrentStage().stream()
+                .filter(batch -> batch.getStageProgress().stream()
                         .anyMatch(stage -> stage.getStatus() == Status.IN_PROGRESS))
                 .count();
 
@@ -875,10 +875,9 @@ public class BatchService {
                 .count();
 
         long pending = batches.stream()
-                .filter(batch -> batch.getStageProgress().stream()
-                        .anyMatch(s -> s.getStatus() == Status.WAITING_FOR_APPROVAL
-                                || s.getStatus() == Status.WAITING_FOR_PARTIAL_APPROVAL
-                                || s.getStatus() == Status.COMPLETELY_APPROVED))
+                .filter(batch -> batch.getStageProgress() != null && batch.getCurrentStage().stream()
+                        .anyMatch(stage -> stage.getStatus() == Status.WAITING_FOR_APPROVAL
+                                || stage.getStatus() == Status.WAITING_FOR_PARTIAL_APPROVAL))
                 .count();
 
         long rejected = batches.stream()

@@ -12,4 +12,5 @@ public class ProjectDataDTO {
     private String projectDescription;
     private String projectDate;
     private LocalDateTime createdOn;
+    private Boolean isActive;
 }

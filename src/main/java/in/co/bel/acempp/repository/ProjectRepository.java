@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface ProjectRepository extends MongoRepository<Project, String> {
 
     Optional<Project> findByProjectIdAndIsDeletedFalse(String projectId);
+    long countByIsDeletedTrueAndCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     Optional<Project> findByProjectId(String projectId);
 
@@ -58,4 +59,14 @@ public interface ProjectRepository extends MongoRepository<Project, String> {
     long countByIsDeletedFalseAndCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     long countByProjectIdInAndIsDeletedFalse(Collection<String> projectIds);
+
+    Page<Project> findByProjectDateBetweenAndProjectNameContainingIgnoreCase(
+            LocalDate fromDate,
+            LocalDate toDate,
+            String search,
+            Pageable pageable);
+
+    Page<Project> findByProjectNameContainingIgnoreCase(String search, Pageable pageable);
+
+    Page<Project> findByProjectDateBetween(LocalDate fromDate, LocalDate toDate, Pageable pageable);
 }

@@ -14,7 +14,7 @@ public final class MasterDataCatalog {
     public static final String CODE_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._/\\\\-]*$";
     public static final String NAME_TYPE_PATTERN = "^[A-Za-z0-9][A-Za-z0-9 ._/\\\\-]*$";
     public static final String MASTER_DATA_NAME_PATTERN = "^[A-Za-z0-9][A-Za-z0-9 _/\\\\-]*$";
-
+    public static final String OBSERVATION_PATTERN = "^[A-Za-z0-9][A-Za-z0-9 .,_/-]*$";
     public static final String MIXERS = "mixers";
     public static final String BUILDINGS = "buildings";
     public static final String OVENS = "ovens";
@@ -51,7 +51,7 @@ public final class MasterDataCatalog {
                 attrInt("noOfOvenAvailable", "Ovens available", 0, 9999)));
         TYPES.put(EQUIPMENT_TYPES, buildWithTypeNameLabel(EQUIPMENT_TYPES, "NDT Equipment Types Master",
                 attrString("typeCode", "Type Code", 32, CODE_PATTERN),
-                attrOptionalString("description", "Description", 500)));
+                attrOptionalString("description", "Description", 255 , OBSERVATION_PATTERN)));
         TYPES.put(EQUIPMENT, build(EQUIPMENT, "NDT Equipments Master",
                 attrString("equipmentType", "Equipment type", 32, CODE_PATTERN)));
         TYPES.put(BEAM_ENERGY, build(BEAM_ENERGY, "Beam Energy Master",
@@ -59,7 +59,7 @@ public final class MasterDataCatalog {
         TYPES.put(UNITS, buildWithUnitNameLabel(UNITS, "Unit Master",
                 attrString("unitCode", "Unit Code", 16, CODE_PATTERN),
                 attrString("symbol", "Symbol", 32, null),
-                attrOptionalString("description", "Description", 500)));
+                attrOptionalString("description", "Description", 255 , OBSERVATION_PATTERN)));
         TYPES.put(CASTING_STATIONS, build(CASTING_STATIONS, "Casting Station Master",
                 attrString("stationType", "Station type", 64, NAME_TYPE_PATTERN)));
         TYPES.put(SUBSCALE_ARTICLES, build(SUBSCALE_ARTICLES, "Subscale Article Master",
@@ -232,6 +232,19 @@ public final class MasterDataCatalog {
                 .dataType("STRING")
                 .required(false)
                 .maxLength(maxLen)
+                .attribute(true)
+                .readOnlyOnUpdate(false)
+                .build();
+    }
+    private static MasterDataFieldDef attrOptionalString(
+            String key, String label, int maxLen, String pattern) {
+        return MasterDataFieldDef.builder()
+                .key(key)
+                .label(label)
+                .dataType("STRING")
+                .required(false)
+                .maxLength(maxLen)
+                .pattern(pattern)
                 .attribute(true)
                 .readOnlyOnUpdate(false)
                 .build();

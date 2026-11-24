@@ -1,13 +1,13 @@
 package in.co.bel.acempp.controller.qualitycontrol;
+
 import in.co.bel.acempp.dto.AcemResponse;
 import in.co.bel.acempp.dto.statictestingfacility.*;
 import in.co.bel.acempp.dto.statictestingfacility.bem.*;
-import in.co.bel.acempp.enums.ErrorCode;
 import in.co.bel.acempp.enums.Status;
-import in.co.bel.acempp.exception.AcemException;
 import in.co.bel.acempp.exception.AcemTemplate;
 import in.co.bel.acempp.service.qualitycontrol.BemMotorService;
 import in.co.bel.acempp.service.qualitycontrol.StaticTestingService;
+import in.co.bel.acempp.validation.DtoValidationService;
 import in.co.bel.acempp.validation.groups.CreateGroup;
 import in.co.bel.acempp.validation.groups.DetailGroup;
 import in.co.bel.acempp.validation.groups.ListGroup;
@@ -20,21 +20,25 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/user/stf")
 @RequiredArgsConstructor
 @PreAuthorize("hasAuthority('User')")
-public class  StaticTestingController {
+public class StaticTestingController {
 
     private final StaticTestingService stfService;
     private final BemMotorService bemMotorService;
+    private final DtoValidationService dtoValidationService;
 
     @PostMapping("/form/create")
-    public ResponseEntity<AcemResponse<StfCreateResponse>> createForm(
-            @Valid @RequestBody CreateStfRequest request,
+    public ResponseEntity<AcemResponse<StfResponse>> createForm(
+            @Validated(CreateGroup.class) @RequestBody CreateStfRequest request,
             Authentication authentication) {
         String userId = (String) authentication.getDetails();
-        StfCreateResponse response = stfService.createForm(request, userId);
+        validateMotor(request);
+        StfResponse response = stfService.createForm(request, userId);
 
         String message = request.getFormSubmissionType() == Status.DRAFT
                 ? "Static testing form created successfully"
@@ -42,18 +46,14 @@ public class  StaticTestingController {
 
         return AcemTemplate.created(response, message);
     }
-    @PutMapping("/form/update")
-    public ResponseEntity<AcemResponse<StfUpdateResponse>> updateForm(
-            @Valid @RequestBody UpdateStfRequest request,
-            Authentication authentication) {
-        if (request.getFormSubmissionType() == Status.DRAFT
-                && (request.getMotors() == null || request.getMotors().isEmpty())) {
-            throw new AcemException(ErrorCode.INVALID_REQUEST,
-                    "motors are required for partial STF updates");
-        }
 
+    @PutMapping("/form/update")
+    public ResponseEntity<AcemResponse<StfResponse>> updateForm(
+            @Validated(UpdateGroup.class) @RequestBody CreateStfRequest request,
+            Authentication authentication) {
+        validateMotor(request);
         String userId = (String) authentication.getDetails();
-        StfUpdateResponse response = stfService.updateForm(request, userId);
+        StfResponse response = stfService.updateForm(request, userId);
 
         String message = request.getFormSubmissionType() == Status.DRAFT
                 ? "Static testing form updated successfully"
@@ -61,14 +61,16 @@ public class  StaticTestingController {
 
         return AcemTemplate.success(response, message);
     }
+
     @PreAuthorize("hasAnyAuthority('User', 'Approver', 'System Manager', 'Admin', 'Centre Head')")
     @PostMapping("/form/details")
-    public ResponseEntity<AcemResponse<StfDetailsResponse>> getFormDetails(
-            @Valid @RequestBody StfDetailsRequest request) {
+    public ResponseEntity<AcemResponse<StfResponse>> getFormDetails(
+            @Validated(DetailGroup.class) @RequestBody CreateStfRequest request) {
         return AcemTemplate.success(
                 stfService.getFormDetails(request.getFormId()),
                 "STF details fetched successfully");
     }
+
     @PostMapping("/bem-motor/create")
     public ResponseEntity<AcemResponse<BemMotorActionResponseDto>> createBemMotor(
             @Validated(CreateGroup.class) @RequestBody BemMotorRequest request,
@@ -99,6 +101,7 @@ public class  StaticTestingController {
         return AcemTemplate.success(motor, "BEM motor details retrieved successfully");
 
     }
+
     @PostMapping("/bem-motor/list")
     public ResponseEntity<AcemResponse<BemMotorListResponseDto>> getBemMotorList(
             @Validated(ListGroup.class)
@@ -107,6 +110,18 @@ public class  StaticTestingController {
         BemMotorListResponseDto data = bemMotorService.getBemMotorList(request);
         return AcemTemplate.success(data, "BEM motor list retrieved successfully");
 
+    }
+
+    private void validateMotor(CreateStfRequest request) {
+        List<StfMotorRequest> motors = request.getMotors();
+        if (motors != null) {
+            for (StfMotorRequest motor : motors) {
+                if (motor == null) {
+                    continue;
+                }
+                dtoValidationService.validateDto(motor, request.getSubDepartmentId());
+            }
+        }
     }
 
 }

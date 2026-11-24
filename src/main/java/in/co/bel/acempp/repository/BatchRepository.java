@@ -252,6 +252,7 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
 
         // Single elemMatch that combines subDeptId and optional status filter
         Criteria stageCrit = Criteria.where("subDepartmentId").is(subDeptId);
+        List<Criteria> stageAdditionalCriteria = new ArrayList<>();
         if (statuses != null && !statuses.isEmpty()) {
             List<String> mapped = statuses.stream()
                     .map(s -> s.replace(" ", "_").toUpperCase()) // e.g. "In Progress" → "IN_PROGRESS"
@@ -259,7 +260,12 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
             stageCrit.and("status").in(mapped);
         }
         if (formSubmittedBy != null && !formSubmittedBy.isEmpty()) {
-            stageCrit.and("submittedBy.id").in(formSubmittedBy);
+            stageAdditionalCriteria.add(new Criteria().orOperator(
+                    Criteria.where("submittedBy.id").in(formSubmittedBy),
+                    Criteria.where("submittedBy.fullName").in(formSubmittedBy)));
+        }
+        if (!stageAdditionalCriteria.isEmpty()) {
+            stageCrit.andOperator(stageAdditionalCriteria.toArray(new Criteria[0]));
         }
         andCriteria.add(Criteria.where("stageProgress").elemMatch(stageCrit));
 
@@ -294,7 +300,7 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
             andCriteria.add(Criteria.where("motorIds").in(motorIds));
         }
 
-        // Date filter
+        // Date filter applies to the batch's Created On timestamp.
         if (fromDate != null || toDate != null) {
             Criteria createdDateCriteria = Criteria.where("createdAt");
             if (fromDate != null) {
@@ -344,6 +350,10 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
         return StatusCountsDto.builder()
                 .initiated(map.getOrDefault("TO_BE_INITIATED", 0L))
                 .inProgress(map.getOrDefault("IN_PROGRESS", 0L))
+                .waitingForApproval(
+                        map.getOrDefault("WAITING_FOR_APPROVAL", 0L)
+                                + map.getOrDefault("WAITING_FOR_PARTIAL_APPROVAL", 0L)
+                )
                 .waitingForPartialApproval(
                         map.getOrDefault("WAITING_FOR_APPROVAL", 0L)
                                 + map.getOrDefault("WAITING_FOR_PARTIAL_APPROVAL", 0L)

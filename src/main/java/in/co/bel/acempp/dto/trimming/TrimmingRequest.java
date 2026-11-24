@@ -1,6 +1,7 @@
 package in.co.bel.acempp.dto.trimming;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import in.co.bel.acempp.dto.common.BatchFormRequest;
 import in.co.bel.acempp.dto.trimming.trimmingcreation.MotorDTO;
 import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.validation.groups.CreateGroup;
@@ -14,32 +15,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.util.List;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TrimmingRequest {
-
-    // Required for Update and Details operations
-    @NotBlank(message = "Form ID is required", groups = {UpdateGroup.class, DetailGroup.class})
-    private String formId;
-
-    // Required only for Create operations
-    @NotBlank(message = "Batch ID is required", groups = {CreateGroup.class})
-    private String batchId;
-
-    // Required for Create and Update
-    @NotNull(message = "Sub Department ID is required", groups = {CreateGroup.class, UpdateGroup.class})
-    private Long subDepartmentId;
-
-    // Required for Create and Update
-    @NotNull(message = "Form Submission Type is required", groups = {CreateGroup.class, UpdateGroup.class})
-    private Status formSubmissionType;
-
+public class TrimmingRequest extends BatchFormRequest {
     @Valid
     @NotEmpty(message = "Motors list cannot be empty", groups = {CreateGroup.class, UpdateGroup.class})
     private List<MotorDTO> motors;

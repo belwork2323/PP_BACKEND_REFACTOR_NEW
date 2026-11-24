@@ -305,6 +305,7 @@ public class MixingService {
         );
 
         mixingForm.setMixingDetails(completeDetails);
+        mixingForm.setRejectionReason(resolveFormRejectionReasonFromMixingDetails(completeDetails));
         List<PremixStatusResponse> premixStatuses =
                 buildPremixStatuses(
                         completeDetails,
@@ -974,12 +975,7 @@ public class MixingService {
             form.setSubmittedAt(now);
         }
 
-        if (request.getActionType() == Status.REJECTED) {
-            form.setRejectionReason(request.getRejectionReason());
-        } else if (batchStatus != Status.REJECTED) {
-            // Do not clear it if another independent item is still rejected.
-            form.setRejectionReason(null);
-        }
+        form.setRejectionReason(resolveFormRejectionReasonFromMixingDetails(form.getMixingDetails()));
 
         if (request.getActionType() == Status.APPROVED && batchStatus == Status.COMPLETELY_APPROVED) {
             fileReadOnlyService.markReadOnlyForForm(form.getFormId(), form.getSubDepartmentId());
@@ -1303,6 +1299,21 @@ public class MixingService {
                 .premixSubmissionType(Status.DRAFT)
                 .premixSubmissionStatus(Status.TO_BE_INITIATED)
                 .build();
+    }
+
+    private static String resolveFormRejectionReasonFromMixingDetails(MixingDetailsDto details) {
+        if (details == null || details.getStages() == null) {
+            return null;
+        }
+        return details.getStages().stream()
+                .filter(Objects::nonNull)
+                .filter(stage -> stage.getPremixes() != null)
+                .flatMap(stage -> stage.getPremixes().stream())
+                .filter(p -> p != null && p.getPremixSubmissionStatus() == Status.REJECTED)
+                .map(PremixDto::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private PremixDto prepareRequestedPremix(PremixDto item) {

@@ -274,6 +274,7 @@ public class CastingCuringService {
             for (CastingCuringMotor incoming : incomingMotors) {
                 CastingCuringMotor existing = existingMotorMap.get(incoming.getMotorId());
                 if (existing == null || !isProtectedMotor(existing)) {
+                    incoming.setRejectionReason(null);
                     existingMotorMap.put(incoming.getMotorId(), incoming);
                 }
             }
@@ -287,6 +288,7 @@ public class CastingCuringService {
             form.setStatus(batchStatus);
             form.setSubDepartmentId(request.getSubDepartmentId());
             form.setMotors(updatedMotors);
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             form.setUpdatedBy(PersonInfo.builder().id(userId).fullName(updater.getUsername()).build());
             form.setUpdatedAt(now);
             if (isFinalFormSubmit) {
@@ -429,15 +431,20 @@ public class CastingCuringService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         LocalDateTime now = LocalDateTime.now();
         form.setUpdatedBy(PersonInfo.builder().fullName(approverName).build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
 
         Batch batch = getBatch(form.getBatchId());
         List<CastingCuringMotor> motors = form.getMotors();
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(motors));
         int totalMotorCount = totalRequiredMotors(batch);
         Status batchStatus = calculateBatchStatus(motors, totalMotorCount);
         form.setStatus(batchStatus);
@@ -751,6 +758,7 @@ public class CastingCuringService {
                     submissionType == Status.DRAFT
                             ? Status.IN_PROGRESS
                             : Status.WAITING_FOR_APPROVAL);
+            completeMotorForm.setRejectionReason(null);
 
             motorsById.put(
                     motorId,
@@ -758,6 +766,18 @@ public class CastingCuringService {
         }
 
         return new ArrayList<>(motorsById.values());
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<CastingCuringMotor> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(CastingCuringMotor::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private List<MotorStatusResponse> buildFullMotorStatuses(
@@ -786,6 +806,7 @@ public class CastingCuringService {
                     .motorId(motorId)
                     .motorSubmissionType(motorSubmissionType(motor))
                     .motorSubmissionStatus(motorStatus(motor))
+                    .rejectionReason(motor.getRejectionReason())
                     .build());
         }
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);

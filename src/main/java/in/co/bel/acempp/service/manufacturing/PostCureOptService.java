@@ -227,6 +227,7 @@ public class PostCureOptService {
             for (PostCureMotor incoming : incomingMotors) {
                 PostCureMotor existing = existingMotorMap.get(incoming.getMotorId());
                 if (existing == null || !isProtectedMotor(existing)) {
+                    incoming.setRejectionReason(null);
                     existingMotorMap.put(incoming.getMotorId(), incoming);
                 }
             }
@@ -240,6 +241,7 @@ public class PostCureOptService {
             form.setStatus(batchStatus);
             form.setSubDepartmentId(request.getSubDepartmentId());
             form.setMotors(updatedMotors);
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             form.setUpdatedBy(PersonInfo.builder()
                     .id(userId)
                     .fullName(updater.getUsername())
@@ -360,12 +362,17 @@ public class PostCureOptService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         LocalDateTime now = LocalDateTime.now();
         form.setUpdatedBy(PersonInfo.builder().fullName(approverUserId).build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(form.getMotors()));
 
         Batch batch = getBatch(form.getBatchId());
         int totalMotorCount = totalRequiredMotors(batch);
@@ -631,9 +638,22 @@ public class PostCureOptService {
                     submissionType == Status.DRAFT
                             ? Status.IN_PROGRESS
                             : Status.WAITING_FOR_APPROVAL);
+            completeMotorForm.setRejectionReason(null);
             motorsById.put(motorId, completeMotorForm);
         }
         return new ArrayList<>(motorsById.values());
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<PostCureMotor> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(PostCureMotor::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private List<MotorStatusResponse> buildFullMotorStatuses(
@@ -662,6 +682,7 @@ public class PostCureOptService {
                     .motorId(motorId)
                     .motorSubmissionType(motorSubmissionType(motor))
                     .motorSubmissionStatus(motorStatus(motor))
+                    .rejectionReason(motor.getRejectionReason())
                     .build());
         }
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);

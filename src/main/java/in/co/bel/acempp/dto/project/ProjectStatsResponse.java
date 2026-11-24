@@ -20,4 +20,5 @@ public class ProjectStatsResponse {
     private long activeProjects;
 
     private long idleProjects;
+    private long inactiveProjects;
 }

@@ -20,6 +20,8 @@ public class PremixRequest {
      */
     private Status premixSubmissionStatus;
 
+    private String rejectionReason;
+
     private List<MaterialProcessRequest> solidProcess;
     private List<MaterialProcessRequest> liquidProcess;
 }

@@ -123,8 +123,9 @@ public class ProjectService {
         }
 
         // 4. Update Description
-        if (!isDescriptionEmpty) {
-            project.setProjectDescription(request.getProjectDescription().trim());
+        if (request.getProjectDescription() != null) {
+            String trimmed = request.getProjectDescription().trim();
+            project.setProjectDescription(trimmed.isEmpty() ? "" : trimmed);
         }
         // 5. Update Audit Field
         project.setUpdatedAt(LocalDateTime.now());
@@ -147,7 +148,6 @@ public class ProjectService {
                 sort
         );
 
-        // 3. Parse Dates
         LocalDate fromDate = null;
         LocalDate toDate = null;
 
@@ -158,23 +158,19 @@ public class ProjectService {
         if (request.getEndDate() != null && !request.getEndDate().isBlank()) {
             toDate = DateTimeConversionUtil.parseLocalDate(request.getEndDate());
         }
+
         String search = request.getSearch();
-        Page<Project> page = fetchProjects(search, fromDate, toDate, pageable
-        );
-        if (page.isEmpty()) {
-            throw new AcemException(
-                    ErrorCode.PROJECT_NOT_FOUND,
-                    "No projects available"
-            );
-        }
+        Page<Project> page = fetchProjects(search, fromDate, toDate, pageable);
+
         List<ProjectDataDTO> projects = page.getContent()
                 .stream()
                 .map(project -> ProjectDataDTO.builder()
                         .projectId(project.getProjectId())
                         .projectName(project.getProjectName())
                         .projectDescription(project.getProjectDescription())
-                        .projectDate(project.getProjectDate().toString())
+                        .projectDate(project.getProjectDate() != null ? project.getProjectDate().toString() : null)
                         .createdOn(project.getCreatedAt())
+                        .isActive(!Boolean.TRUE.equals(project.getIsDeleted()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -209,22 +205,23 @@ public class ProjectService {
     private Page<Project> fetchProjects(String search, LocalDate fromDate, LocalDate toDate, Pageable pageable) {
         boolean hasSearch = search != null && !search.isBlank();
         boolean hasDate = fromDate != null && toDate != null;
+
         if (hasSearch && hasDate) {
             return projectRepository
-                    .findByIsDeletedFalseAndProjectDateBetweenAndProjectNameContainingIgnoreCase(
+                    .findByProjectDateBetweenAndProjectNameContainingIgnoreCase(
                             fromDate,
                             toDate,
-                            search,
+                            search.trim(),
                             pageable
                     );
         }
         if (hasSearch) {
-            return projectRepository.findByIsDeletedFalseAndProjectNameContainingIgnoreCase(search, pageable);
+            return projectRepository.findByProjectNameContainingIgnoreCase(search.trim(), pageable);
         }
         if (hasDate) {
-            return projectRepository.findByIsDeletedFalseAndProjectDateBetween(fromDate, toDate, pageable);
+            return projectRepository.findByProjectDateBetween(fromDate, toDate, pageable);
         }
-        return projectRepository.findByIsDeletedFalse(pageable);
+        return projectRepository.findAll(pageable);
     }
 
     public DeleteProjectResponse deleteProject(DeleteProjectRequest request) {
@@ -292,31 +289,34 @@ public class ProjectService {
         LocalDateTime start = range.start();
         LocalDateTime end = range.end();
 
-        long totalProjects = projectRepository
+        long activeProjectsCount = projectRepository
                 .countByIsDeletedFalseAndCreatedAtBetween(start, end);
 
-        long projectsCreatedToday = totalProjects;
-        long projectsCreatedThisMonth = totalProjects;
+        long inactiveProjects = projectRepository
+                .countByIsDeletedTrueAndCreatedAtBetween(start, end);
+
+        long totalProjects = activeProjectsCount + inactiveProjects;
 
         Set<String> activeProjectIds = new HashSet<>();
+        batchRepository.findDistinctProjectIds().forEach(batch -> {
+            if (batch.getProjectId() != null) {
+                activeProjectIds.add(batch.getProjectId());
+            }
+        });
 
-        batchRepository.findDistinctProjectIds().forEach(batch ->
-                activeProjectIds.add(batch.getProjectId()));
-
-        long activeProjects = activeProjectIds.isEmpty()
+        long projectsWithBatches = activeProjectIds.isEmpty()
                 ? 0
                 : projectRepository.countByProjectIdInAndIsDeletedFalseAndCreatedAtBetween(
                 activeProjectIds,
                 start,
                 end);
 
-        long idleProjects = totalProjects - activeProjects;
+        long idleProjects = activeProjectsCount - projectsWithBatches;
 
         return ProjectStatsResponse.builder()
                 .totalProjects(totalProjects)
-                .projectsCreatedToday(projectsCreatedToday)
-                .projectsCreatedThisMonth(projectsCreatedThisMonth)
-                .activeProjects(activeProjects)
+                .activeProjects(activeProjectsCount)
+                .inactiveProjects(inactiveProjects)
                 .idleProjects(idleProjects)
                 .build();
     }

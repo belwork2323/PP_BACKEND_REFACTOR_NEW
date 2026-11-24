@@ -215,6 +215,8 @@ public class BemMotorService {
             motor.setSubDepartmentId(subDepartmentId);
             motor.setFormSubmissionType(request.getFormSubmissionType());
             motor.setStatus(status);
+            motor.setRejectionReason(null);
+            motor.setRemarks(null);
             motor.setUpdatedBy(stfService.person(stfService.getUser(userId)));
             motor.setUpdatedAt(LocalDateTime.now());
 
@@ -257,6 +259,7 @@ public class BemMotorService {
                 .bemNo(motor.getMotorId())
                 .subType(motor.getSubType())
                 .status(motor.getStatus())
+                .rejectionReason(motor.getRejectionReason())
                 .staticTestingDetails(motor.getStaticTestingDetails())
                 .createdBy(motor.getCreatedBy())
                 .createdAt(motor.getCreatedAt())
@@ -409,7 +412,11 @@ public class BemMotorService {
 
         // Update approval/rejection details
         motor.setRemarks(request.getRemarks());
-        motor.setRejectionReason(request.getRejectionReason());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         // Update audit details
         motor.setUpdatedBy(stfService.person(stfService.getUser(userId)));

@@ -21,7 +21,7 @@ class FormPdfServiceQcHardwareAttachmentsTest {
     void rendersMotorLevelHardwareAttachmentsAfterDispatchObservations() throws Exception {
         FormPdfService service = new FormPdfService(
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, new ObjectMapper(), null, null, null, null);
+                null, null, null, null, new ObjectMapper(), null, null, null, null, null);
         Map<String, Object> dispatch = Map.of(
                 "visualObservations", List.of(Map.of(
                         "srNo", 1,

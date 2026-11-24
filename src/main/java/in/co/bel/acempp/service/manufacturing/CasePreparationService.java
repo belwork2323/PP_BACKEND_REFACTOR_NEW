@@ -117,8 +117,11 @@ public class CasePreparationService {
 
             CasePreparationDetailsRequest persistedDetails = casePreparationDtoMapper.toPersistence(request.getCasePreparationDetails());
             List<CasePreparationMotorRequest> motors = persistedDetails.getMotors();
-            motors.forEach(motor -> motor.setMotorSubmissionStatus(
-                    resolveMotorSubmissionStatus(motor.getMotorSubmissionType())));
+            motors.forEach(motor -> {
+                motor.setMotorSubmissionStatus(
+                        resolveMotorSubmissionStatus(motor.getMotorSubmissionType()));
+                motor.setRejectionReason(null);
+            });
 
             int totalRequiredMotors = batch.getNumberOfMotors();
             Status batchStatus = calculateBatchStatus(motors, totalRequiredMotors);
@@ -270,11 +273,13 @@ public class CasePreparationService {
                 Status newStatus = resolveMotorSubmissionStatus(motorRequest.getMotorSubmissionType());
                 CasePreparationMotorRequest persistedMotor = casePreparationDtoMapper.toPersistence(motorRequest);
                 persistedMotor.setMotorSubmissionStatus(newStatus);
+                persistedMotor.setRejectionReason(null);
                 existingMotorMap.put(persistedMotor.getMotorId(), persistedMotor);
             }
         }
 
         List<CasePreparationMotorRequest> updatedMotors = new ArrayList<>(existingMotorMap.values());
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
 
         // A. Target file set = files on the merged form (all motors), not just the partial payload
         Set<String> targetFileIds = extractMotorListFileIds(updatedMotors);
@@ -509,6 +514,11 @@ public class CasePreparationService {
 
         LocalDateTime now = LocalDateTime.now();
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
         form.setUpdatedBy(
                 PersonInfo.builder()
                         .fullName(approverName)
@@ -516,10 +526,10 @@ public class CasePreparationService {
 
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
 
         int totalRequiredMotors = batch.getNumberOfMotors();
         List<CasePreparationMotorRequest> motors = form.getCasePreparationDetails().getMotors();
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(motors));
 
         // 3. Recalculate Batch/Form level status dynamically
         Status batchStatus = calculateBatchStatus(motors, totalRequiredMotors);
@@ -706,6 +716,7 @@ public class CasePreparationService {
                                 .motorId(motor.getMotorId())
                                 .motorSubmissionType(motor.getMotorSubmissionType())
                                 .motorSubmissionStatus(motor.getMotorSubmissionStatus())
+                                .rejectionReason(motor.getRejectionReason())
                                 .build()
                 );
 
@@ -788,6 +799,18 @@ public class CasePreparationService {
         throw new AcemException(
                 ErrorCode.INVALID_REQUEST,
                 "Invalid motorSubmissionType");
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<CasePreparationMotorRequest> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(CasePreparationMotorRequest::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     public ApproverStatusResponse changeStatus(ApproverStatusRequest request, String approverName) {

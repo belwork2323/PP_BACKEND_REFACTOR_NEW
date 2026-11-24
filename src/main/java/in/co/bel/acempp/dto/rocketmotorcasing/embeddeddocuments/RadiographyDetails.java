@@ -1,5 +1,6 @@
 package in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments;
 
+import in.co.bel.acempp.dto.ndt.motor.RadiographyPlanDetailsDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +18,6 @@ public class RadiographyDetails {
 
     private String radiographyPlanName;
 
-    private List<RadiographyPlanDetails> radiographyPlanDetails;
+    private List<RadiographyPlanDetailsDto> radiographyPlanDetails;
 
 }

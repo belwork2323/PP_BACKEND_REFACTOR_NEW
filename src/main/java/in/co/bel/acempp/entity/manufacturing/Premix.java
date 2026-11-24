@@ -15,6 +15,7 @@ public class Premix {
 
     private Status premixSubmissionType;
     private Status premixSubmissionStatus;
+    private String rejectionReason;
 
     private List<MaterialProcess> solidProcess;
     private List<MaterialProcess> liquidProcess;

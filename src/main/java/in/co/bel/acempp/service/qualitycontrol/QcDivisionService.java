@@ -18,10 +18,10 @@ import in.co.bel.acempp.dto.mixing.mixingform.MixingFormResponse;
 import in.co.bel.acempp.dto.mixing.mixingform.PremixDto;
 import in.co.bel.acempp.dto.mixing.qualitychecks.QualityCheckParameterDto;
 import in.co.bel.acempp.dto.mixing.qualitychecks.QualityCheckParams;
+import in.co.bel.acempp.dto.ndt.NdtResponse;
 import in.co.bel.acempp.dto.postcureoperations.PostCureMotor;
 import in.co.bel.acempp.dto.postcureoperations.PostCureResponse;
 import in.co.bel.acempp.dto.rawmaterialpreparation.*;
-import in.co.bel.acempp.dto.ndt.NdtDetailsResponse;
 import in.co.bel.acempp.dto.ndt.NdtMotorDto;
 import in.co.bel.acempp.dto.ndt.motor.RadiographyDetailsDto;
 import in.co.bel.acempp.dto.ndt.motor.RadiographyPlanDetailsDto;
@@ -32,10 +32,9 @@ import in.co.bel.acempp.dto.rawmaterialsourcing.LotDetailsResponse;
 import in.co.bel.acempp.dto.rawmaterialsourcing.SpecificationResponse;
 import in.co.bel.acempp.dto.rocketmotorcasing.DocumentDto;
 import in.co.bel.acempp.dto.statictestingfacility.StaticMotorData;
-import in.co.bel.acempp.dto.statictestingfacility.StfDetailsResponse;
 import in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments.RadiographyDetails;
-import in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments.RadiographyPlanDetails;
 import in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments.Sections;
+import in.co.bel.acempp.dto.statictestingfacility.StfResponse;
 import in.co.bel.acempp.dto.subscale.SubScaleMetadata;
 import in.co.bel.acempp.dto.subscale.subscalecreation.CuringDetailsDTO;
 import in.co.bel.acempp.dto.subscale.subscalecreation.HardwarePreparationDetailsDTO;
@@ -1278,7 +1277,7 @@ public class QcDivisionService {
                         "NDT form not found for batch: " + batchId))
                 .getFormId();
 
-        NdtDetailsResponse formDetails = ndtService.getFormDetails(formId);
+        NdtResponse formDetails = ndtService.getFormDetails(formId);
         List<Map<String, Object>> motors = buildApprovedMotorDetails(
                 formDetails.getMotorStatuses(),
                 formDetails.getMotors()
@@ -1298,7 +1297,7 @@ public class QcDivisionService {
                         "Static Test Facility form not found for batch: " + batchId))
                 .getFormId();
 
-        StfDetailsResponse formDetails = staticTestingService.getFormDetails(formId);
+        StfResponse formDetails = staticTestingService.getFormDetails(formId);
         List<StaticMotorData> sourceMotors = Optional.ofNullable(formDetails.getMotors())
                 .orElseGet(Collections::emptyList);
         List<Map<String, Object>> motors = new ArrayList<>();
@@ -1426,7 +1425,7 @@ public class QcDivisionService {
         }
         if (!hasPlanDetails && rmcRadiography.getRadiographyPlanDetails() != null) {
             target.setRadiographyPlanDetails(
-                    mapRadiographyPlanDetails(rmcRadiography.getRadiographyPlanDetails()));
+                    rmcRadiography.getRadiographyPlanDetails());
         }
         motor.setRadiographyDetails(target);
     }
@@ -1445,43 +1444,22 @@ public class QcDivisionService {
         return sections == null ? null : sections.getRadiographyDetails();
     }
 
-    private List<RadiographyPlanDetailsDto> mapRadiographyPlanDetails(
-            List<RadiographyPlanDetails> source) {
-        if (source == null || source.isEmpty()) {
-            return source == null ? null : List.of();
-        }
-        List<RadiographyPlanDetailsDto> mapped = new ArrayList<>();
-        int index = 1;
-        for (RadiographyPlanDetails row : source) {
-            if (row == null) {
-                continue;
-            }
-            mapped.add(RadiographyPlanDetailsDto.builder()
-                    .srNo(index++)
-                    .numberOfSections(row.getNumberOfSections())
-                    .numberOfOrientations(row.getNumberOfOrientations())
-                    .sfd(row.getSfd())
-                    .numberOfNormalExposures(row.getNumberOfNormalExposures())
-                    .numberOfTangentialExposures(row.getNumberOfTangentialExposures())
-                    .detectorType(row.getDetectorType())
-                    .build());
-        }
-        return mapped;
-    }
+
 
     private List<Map<String, Object>> buildApprovedMotorDetails(
             List<MotorStatusResponse> motorStatuses,
-            List<Map<String, Object>> savedMotors) {
+            List<NdtMotorDto> savedMotors) {
         Map<String, Map<String, Object>> motorDetailsById = Optional.ofNullable(savedMotors)
                 .orElseGet(Collections::emptyList)
                 .stream()
                 .filter(Objects::nonNull)
-                .filter(motor -> motor.get("motorId") != null)
+                .filter(motor -> motor.getMotorId() != null)
                 .collect(Collectors.toMap(
-                        motor -> String.valueOf(motor.get("motorId")),
-                        motor -> motor,
+                        motor -> motor.getMotorId().trim(),
+                        this::toMotorMap,
                         (first, ignored) -> first,
-                        LinkedHashMap::new));
+                        LinkedHashMap::new
+                ));
 
         return Optional.ofNullable(motorStatuses)
                 .orElseGet(Collections::emptyList)
@@ -1492,7 +1470,16 @@ public class QcDivisionService {
                 ))
                 .toList();
     }
+    private Map<String, Object> toMotorMap(NdtMotorDto motor) {
+        if (motor == null) {
+            return Collections.emptyMap();
+        }
 
+        return objectMapper.convertValue(
+                motor,
+                new TypeReference<Map<String, Object>>() {}
+        );
+    }
     private Map<String, Object> mapMotorDetailsByApproval(
             MotorStatusResponse motorStatus,
             Map<String, Map<String, Object>> motorDetailsById) {
@@ -3636,9 +3623,16 @@ public class QcDivisionService {
             throw new AcemException(ErrorCode.INVALID_REQUEST,
                     "Only APPROVED or REJECTED actions are allowed");
         }
-        if (action == Status.REJECTED && (rejectionReason == null || rejectionReason.isBlank())) {
-            throw new AcemException(ErrorCode.REJECTION_REASON_REQUIRED,
-                    "rejectionReason is required for rejection");
+        if (action == Status.REJECTED) {
+            String trimmed = rejectionReason == null ? "" : rejectionReason.trim();
+            if (trimmed.isEmpty()) {
+                throw new AcemException(ErrorCode.REJECTION_REASON_REQUIRED,
+                        "rejectionReason is required for rejection");
+            }
+            if (trimmed.length() < 3) {
+                throw new AcemException(ErrorCode.REJECTION_REASON_REQUIRED,
+                        "Rejection reason must be between 3 and 500 characters");
+            }
         }
     }
 

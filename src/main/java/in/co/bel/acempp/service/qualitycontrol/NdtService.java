@@ -125,12 +125,19 @@ public class NdtService {
                     .inProgressMotorCount(counts.inProgress())
                     .totalMotorCount(totalRequiredMotors(batch))
                     .motorStatuses(buildFullMotorStatuses(batch, motors, batch.getMotorIds()));
+            User updater = getUser(userId);
 
             if (isDraft) {
-                response.createdBy(userId)
+                response.createdBy(PersonInfo.builder()
+                                .id(updater.getUserId())
+                                .fullName(updater.getUsername())
+                                .build())
                         .createdOn(now);
             } else {
-                response.submittedBy(userId)
+                response.submittedBy(PersonInfo.builder()
+                        .id(userId)
+                        .fullName(updater.getUsername())
+                        .build())
                         .submittedOn(now);
             }
 
@@ -153,7 +160,7 @@ public class NdtService {
         }
     }
 
-    public UpdateNdtResponse updateForm(UpdateNdtRequest request, String userId) {
+    public NdtResponse updateForm(CreateNdtRequest request, String userId) {
         ApprovalStatusUtil.requireDraftFormWorkflow(request.getFormSubmissionType());
         Ndt form = ndtRepo.findByFormIdAndIsDeletedFalse(request.getFormId())
                 .orElseThrow(() -> new AcemException(
@@ -213,6 +220,7 @@ public class NdtService {
                 NdtMotorDto existing = existingMotorMap.get(incoming.getMotorId());
                 if (existing == null || !isProtectedMotor(existing)) {
                     // Retain the complete typed NDT motor and all nested inspection sections.
+                    incoming.setRejectionReason(null);
                     existingMotorMap.put(incoming.getMotorId(), incoming);
                 }
             }
@@ -226,6 +234,7 @@ public class NdtService {
             form.setStatus(batchStatus);
             form.setSubDepartmentId(request.getSubDepartmentId());
             form.setMotors(updatedMotors);
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             form.setUpdatedBy(PersonInfo.builder()
                     .id(updater.getUserId())
                     .fullName(updater.getUsername())
@@ -243,8 +252,8 @@ public class NdtService {
                     now);
 
             MotorCounts counts = countMotors(updatedMotors);
-            UpdateNdtResponse.UpdateNdtResponseBuilder response =
-                    UpdateNdtResponse.builder()
+            NdtResponse.NdtResponseBuilder response =
+                    NdtResponse.builder()
                             .formId(savedForm.getFormId())
                             .batchId(savedForm.getBatchId())
                             .formStatus(batchStatus)
@@ -261,7 +270,10 @@ public class NdtService {
                                     batch.getMotorIds()));
 
             if (isFinalFormSubmit) {
-                response.submittedBy(userId)
+                response.submittedBy(PersonInfo.builder()
+                                .id(updater.getUserId())
+                                .fullName(updater.getUsername())
+                                .build())
                         .submittedOn(now);
             }
 
@@ -284,7 +296,7 @@ public class NdtService {
         }
     }
 
-    public NdtDetailsResponse getFormDetails(String formId) {
+    public NdtResponse getFormDetails(String formId) {
         Ndt form = ndtRepo.findByFormIdAndIsDeletedFalse(formId)
                 .orElseThrow(() -> new AcemException(
                         ErrorCode.FORM_NOT_FOUND,
@@ -297,13 +309,13 @@ public class NdtService {
         int totalMotorCount = totalRequiredMotors(batch);
         enrichNdtMotorFiles(motors, form.getSubDepartmentId());
 
-        return NdtDetailsResponse.builder()
+        return NdtResponse.builder()
                 .formId(form.getFormId())
                 .batchId(form.getBatchId())
                 .batchType(form.getBatchType())
                 .formStatus(form.getStatus())
                 .createdBy(batch.getCreatedBy() != null
-                        ? batch.getCreatedBy().getId()
+                        ? batch.getCreatedBy()
                         : null)
                 .createdAt(batch.getCreatedAt())
                 .submittedBy(form.getCreatedBy())
@@ -357,6 +369,11 @@ public class NdtService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         User approver = getUser(approverUserId);
         LocalDateTime now = LocalDateTime.now();
@@ -366,7 +383,7 @@ public class NdtService {
                 .build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(form.getMotors()));
 
         Batch batch = getBatch(form.getBatchId());
         int totalMotorCount = totalRequiredMotors(batch);
@@ -595,17 +612,29 @@ public class NdtService {
                     submissionType == Status.DRAFT
                             ? Status.IN_PROGRESS
                             : Status.WAITING_FOR_APPROVAL);
+            motorForm.setRejectionReason(null);
             motorsById.put(rawMotorId, motorForm);
         }
         return new ArrayList<>(motorsById.values());
     }
 
-    private List<Map<String, Object>> motorDetails(List<NdtMotorDto> motors) {
+    private static String resolveFormRejectionReasonFromMotors(List<NdtMotorDto> motors) {
+        if (motors == null) {
+            return null;
+        }
         return motors.stream()
-                .map(motor -> objectMapper.convertValue(
-                        motor,
-                        new TypeReference<Map<String, Object>>() {
-                        }))
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(NdtMotorDto::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<NdtMotorDto> motorDetails(List<NdtMotorDto> motors) {
+        if (motors == null) {
+            return Collections.emptyList();
+        }
+        return motors.stream()
                 .collect(Collectors.toList());
     }
 
@@ -635,6 +664,7 @@ public class NdtService {
                     .motorId(motorId)
                     .motorSubmissionType(motorSubmissionType(motor))
                     .motorSubmissionStatus(motorStatus(motor))
+                    .rejectionReason(motor.getRejectionReason())
                     .build());
         }
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);

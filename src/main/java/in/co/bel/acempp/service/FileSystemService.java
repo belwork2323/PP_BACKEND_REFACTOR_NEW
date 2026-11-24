@@ -94,7 +94,7 @@ public class FileSystemService {
             log.warn("File validation failed (size exceeded): fileName={}, size={} bytes, maxAllowed={} bytes",
                     fileName, fileSize, config.getMaxSizeBytes());
             throw new AcemException(ErrorCode.BAD_REQUEST,
-                    "File size exceeds max limit of " + (config.getMaxSizeBytes() / (1024 * 1024)) + " MB");
+                    "File size exceeds max limit of " + formatMaxSizeMb(config.getMaxSizeBytes()) + " MB");
         }
 
         if (config.getAllowedExtensions() != null && !config.getAllowedExtensions().isEmpty()) {
@@ -436,5 +436,13 @@ public class FileSystemService {
         log.info("Successfully soft-deleted file metadata record in MongoDB for fileId={}", uploadedFile.getFileId());
     }
 
+    /** Whole MB when exact; otherwise one decimal so small limits are not shown as 0. */
+    private static String formatMaxSizeMb(long maxSizeBytes) {
+        double mb = maxSizeBytes / (1024.0 * 1024.0);
+        if (Math.abs(mb - Math.rint(mb)) < 1e-9) {
+            return String.format(Locale.US, "%.0f", mb);
+        }
+        return String.format(Locale.US, "%.1f", mb);
+    }
 
 }

@@ -31,14 +31,14 @@ public class MotorApprovalRequest {
     private Status actionType;
 
     @Pattern(
-            regexp = "^$|^[A-Za-z0-9\\s@$%^&*()=\\-\\+\\[\\]\\/\\\\\"'.,:<>]{10,500}$",
+            regexp = "^$|^[A-Za-z0-9\\s@$%^&*()=\\-\\+\\[\\]\\/\\\\\"'.,:<>]{3,500}$",
             message = "Remarks must be between 10 and 500 characters and contain only allowed characters (@$%^&*()-+[]/\\\"'.,:<>)"
     )
     private String remarks;
 
     @Pattern(
-            regexp = "^$|^[A-Za-z0-9\\s@$%^&*()=\\-\\+\\[\\]\\/\\\\\"'.,:<>]{10,500}$",
-            message = "Rejection reason must be between 10 and 500 characters and contain only allowed characters (@$%^&*()-+[]/\\\"'.,:<>)"
+            regexp = "^$|^[A-Za-z0-9\\s@$%^&*()=\\-\\+\\[\\]\\/\\\\\"'.,:<>]{3,500}$",
+            message = "Rejection reason must be between 3 and 500 characters and contain only allowed characters (@$%^&*()-+[]/\\\"'.,:<>)"
     )
     private String rejectionReason;
 }

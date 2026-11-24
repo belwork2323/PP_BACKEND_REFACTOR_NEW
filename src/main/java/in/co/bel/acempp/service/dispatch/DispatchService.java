@@ -282,6 +282,7 @@ public class DispatchService {
             for (DispatchMotor incoming : incomingMotors) {
                 DispatchMotor existing = existingMotorMap.get(incoming.getMotorId());
                 if (existing == null || !isProtectedMotor(existing)) {
+                    incoming.setRejectionReason(null);
                     existingMotorMap.put(incoming.getMotorId(), incoming);
                 }
             }
@@ -295,6 +296,7 @@ public class DispatchService {
             form.setStatus(batchStatus);
             form.setSubDepartmentId(request.getSubDepartmentId());
             form.setMotors(updatedMotors);
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             form.setUpdatedBy(PersonInfo.builder()
                     .id(updater.getUserId())
                     .fullName(updater.getUsername())
@@ -430,6 +432,11 @@ public class DispatchService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
 
         User approver = getUser(approverUserId);
         LocalDateTime now = LocalDateTime.now();
@@ -439,7 +446,7 @@ public class DispatchService {
                 .build());
         form.setUpdatedAt(now);
         form.setRemarks(request.getRemarks());
-        form.setRejectionReason(request.getRejectionReason());
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(form.getMotors()));
 
         Batch batch = getBatch(form.getBatchId());
         int totalMotorCount = totalRequiredMotors(batch);
@@ -658,10 +665,23 @@ public class DispatchService {
                             .motorSubmissionStatus(submissionType == Status.DRAFT
                                     ? Status.IN_PROGRESS
                                     : Status.WAITING_FOR_APPROVAL)
+                            .rejectionReason(null)
                             .dispatchDetails(motorForm.getDispatchDetails())
                             .build());
         }
         return new ArrayList<>(motorsById.values());
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<DispatchMotor> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(DispatchMotor::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private List<MotorStatusResponse> buildFullMotorStatuses(
@@ -690,6 +710,7 @@ public class DispatchService {
                     .motorId(motorId)
                     .motorSubmissionType(motorSubmissionType(motor))
                     .motorSubmissionStatus(motorStatus(motor))
+                    .rejectionReason(motor.getRejectionReason())
                     .build());
         }
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);

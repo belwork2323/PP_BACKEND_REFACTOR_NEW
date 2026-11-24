@@ -19,20 +19,23 @@ import in.co.bel.acempp.dto.castingcuring.*;
 import in.co.bel.acempp.dto.mixing.mixingcycle.MixingDetailsDto;
 import in.co.bel.acempp.dto.mixing.mixingform.MixingFormRequest;
 import in.co.bel.acempp.dto.mixing.mixingform.MixingFormResponse;
+import in.co.bel.acempp.dto.ndt.NdtMotorDto;
+import in.co.bel.acempp.dto.ndt.NdtResponse;
+import in.co.bel.acempp.dto.ndt.motor.RadiographyPlanDetailsDto;
 import in.co.bel.acempp.dto.postcureoperations.*;
 import in.co.bel.acempp.dto.postcureoperations.PostCureSectionPayloads.*;
 import in.co.bel.acempp.dto.rawmaterialpreparation.*;
+import in.co.bel.acempp.dto.statictestingfacility.StfMotorRequest;
+import in.co.bel.acempp.dto.statictestingfacility.StfResponse;
 import in.co.bel.acempp.dto.statictestingfacility.bem.BemMotorDetailsResponseDto;
 import in.co.bel.acempp.dto.subscale.subscalecreation.*;
 import in.co.bel.acempp.dto.subscale.SubscaleProcessingDetailsResponse;
-import in.co.bel.acempp.dto.ndt.NdtDetailsResponse;
 import in.co.bel.acempp.dto.qcdivision.DivisionDetailDto;
 import in.co.bel.acempp.dto.qcdivision.DivisionStatusDto;
 import in.co.bel.acempp.dto.qcdivision.QcDivisionFormResponse;
 import in.co.bel.acempp.dto.qcdivision.QcMotorStatusDto;
 import in.co.bel.acempp.dto.statictestingfacility.StaticMotorData;
 import in.co.bel.acempp.dto.statictestingfacility.StfPayloads.*;
-import in.co.bel.acempp.dto.statictestingfacility.StfDetailsResponse;
 import in.co.bel.acempp.dto.rawmaterialsourcing.*;
 import in.co.bel.acempp.dto.rawmaterialsourcing.preparation.AdductPreparationDetails;
 import in.co.bel.acempp.dto.rawmaterialsourcing.preparation.HtpbBlendingPreparationDetails;
@@ -42,6 +45,7 @@ import in.co.bel.acempp.dto.trimming.trimmingcreation.*;
 import in.co.bel.acempp.dto.trimming.TrimmingDetailsResponse;
 import in.co.bel.acempp.dto.user.operations.SpecificationRangeDto;
 import in.co.bel.acempp.entity.CastingStation;
+import in.co.bel.acempp.entity.batch.BuildingMaster;
 import in.co.bel.acempp.entity.qualitycontrol.BemMotor;
 import in.co.bel.acempp.entity.sourcing.Lot;
 import in.co.bel.acempp.enums.ErrorCode;
@@ -50,6 +54,7 @@ import in.co.bel.acempp.enums.Status;
 import in.co.bel.acempp.exception.AcemException;
 import in.co.bel.acempp.repository.qualitycontrol.BemMotorRepository;
 import in.co.bel.acempp.repository.CastingStationRepository;
+import in.co.bel.acempp.repository.BuildingMasterRepository;
 import in.co.bel.acempp.repository.sourcing.LotRepository;
 import in.co.bel.acempp.service.dispatch.DispatchService;
 import in.co.bel.acempp.service.manufacturing.*;
@@ -102,6 +107,7 @@ public class FormPdfService {
     private final BemMotorRepository bemMotorRepository;
     private final LotRepository lotRepository;
     private final CastingStationRepository castingStationRepository;
+    private final BuildingMasterRepository buildingMasterRepository;
 
     // ── Styling Constants ─────────────────────────────────────────
     private static final Color BRAND_BLUE = new Color(13, 71, 116);
@@ -282,7 +288,7 @@ public class FormPdfService {
                 renderTrimmingDetails(doc, data);
             }
             case 10 -> { // NDT
-                NdtDetailsResponse data = ndtService.getFormDetails(req.getFormId());
+                NdtResponse data = ndtService.getFormDetails(req.getFormId());
 
                 addDocHeader(doc, label,
                         "Batch: " + data.getBatchId()
@@ -324,7 +330,7 @@ public class FormPdfService {
                     renderBemMotorDetails(doc, data);
                 } else {
                     // Default standard STF service for "STF-" forms
-                    StfDetailsResponse data = stfService.getFormDetails(formId);
+                    StfResponse data = stfService.getFormDetails(formId);
 
                     addDocHeader(doc, label,
                             "Batch: " + data.getBatchId()
@@ -586,7 +592,7 @@ public class FormPdfService {
             ItemsReceived items = receipt.getItemsReceived();
             if (items != null) {
                 addKV(mr, "Item type / description",
-                        str(items.getItemType()) + " / " + str(items.getDescription()));
+                        prettyText(str(items.getItemType())) + " / " + prettyText(str(items.getDescription())));
                 addKV(mr, "Dimension", str(items.getDimension()) + " " + str(items.getUnit()));
                 addKV(mr, "Receipt status", str(items.getReceiptStatus()));
                 addKV(mr, "Observations", str(items.getObservations()));
@@ -610,7 +616,7 @@ public class FormPdfService {
             spacer(doc, 6);
 
             // Plan table
-            List<RadiographyPlanDetails> planList = radio.getRadiographyPlanDetails();
+            List<RadiographyPlanDetailsDto> planList = radio.getRadiographyPlanDetails();
             if (planList != null && !planList.isEmpty()) {
                 Paragraph planTitle = new Paragraph("Plan", SECTION_FONT);
                 planTitle.setSpacingAfter(4);
@@ -628,7 +634,7 @@ public class FormPdfService {
 
                 boolean alt = false;
                 int sr = 1;
-                for (RadiographyPlanDetails p : planList) {
+                for (RadiographyPlanDetailsDto p : planList) {
                     Color bg = alt ? ROW_ALT : WHITE;
                     addCell(planTable, String.valueOf(sr++), BODY_FONT, bg);
                     addCell(planTable, str(p.getNumberOfSections()), BODY_FONT, bg);
@@ -636,7 +642,7 @@ public class FormPdfService {
                     addCell(planTable, str(p.getSfd()), BODY_FONT, bg);
                     addCell(planTable, str(p.getNumberOfNormalExposures()), BODY_FONT, bg);
                     addCell(planTable, str(p.getNumberOfTangentialExposures()), BODY_FONT, bg);
-                    addCell(planTable, str(p.getDetectorType()), BODY_FONT, bg);
+                    addCell(planTable, prettyText(str(p.getDetectorType())), BODY_FONT, bg);
                     alt = !alt;
                 }
                 doc.add(planTable);
@@ -672,6 +678,7 @@ public class FormPdfService {
             addKV(ins, "Insulation type", str(insulation.getType()));
             addKV(ins, "Report no.", str(insulation.getReportNo()));
             addKV(ins, "Receipt status", str(insulation.getReceiptStatus()));
+            addKV(ins, "Report upload", documentReference(insulation.getReportUpload()));
             doc.add(ins);
             spacer(doc, 8);
 
@@ -1618,6 +1625,9 @@ public class FormPdfService {
                     String label = r.containsKey("operation")
                             ? str(r.get("operation"))
                             : str(r.get("parameter"));
+                    if ("Dispatch Time".equalsIgnoreCase(label.trim())) {
+                        label = "Dispatch Date & Time";
+                    }
 
                     String value = r.containsKey("value") ? str(r.get("value"))
                             : (r.containsKey("observations") ? str(r.get("observations")) : defObs(r));
@@ -1727,6 +1737,7 @@ public class FormPdfService {
     private String casePreparationFieldLabel(String field) {
         return switch (field) {
             case "testReport" -> "Test Report";
+            case "dispatchTime", "dispatchDateTime" -> "Dispatch Date & Time";
             default -> prettyText(field);
         };
     }
@@ -2363,7 +2374,8 @@ public class FormPdfService {
                 boolean alt = false;
                 for (Map<String, Object> row : postCastRows) {
                     Color bg = alt ? ROW_ALT : WHITE;
-                    addCell(table, ccText(row, "ACTIVITY", "activity", "PARAMETER", "parameter"), BODY_FONT, bg);
+                    addCell(table, ccCastingActivityLabel(
+                            ccText(row, "ACTIVITY", "activity", "PARAMETER", "parameter")), BODY_FONT, bg);
                     addCell(table, ccText(row, "DETAILS", "details", "VALUE", "value"), BODY_FONT, bg);
                     alt = !alt;
                 }
@@ -2377,7 +2389,7 @@ public class FormPdfService {
             addSection(doc, "Curing", "");
 
             PdfPTable cureSetup = createKeyValueTable();
-            addKV(cureSetup, "Type of Curing", ccText(curingSetup, "curingType"));
+            addKV(cureSetup, "Type of Curing", prettyText(ccText(curingSetup, "curingType")));
             addKV(cureSetup, "Oven", ccText(curingSetup, "oven", "selectOven"));
             addKV(cureSetup, "Oven Number", ccText(curingSetup, "ovenNo"));
             doc.add(cureSetup);
@@ -2435,11 +2447,11 @@ public class FormPdfService {
                 PdfPTable t = createKeyValueTable();
                 addKV(t, "Any Other Observations", ccText(row, "OTHER_OBSERVATIONS", "otherObservations"));
                 addKV(t, "Visual Observation of Cured Motor", ccText(row, "VISUAL_OBSERVATION", "visualObservation"));
-                addKV(t, "Date/Time for Removal of Pressure Plate",
+                addKV(t, "Date & Time for Removal of Pressure Plate",
                         ccDateTime(row, "PRESSURE_PLATE_REMOVAL_DATE_TIME",
                                 "pressurePlateRemovalDateTime", null));
                 addKV(t, "Hardness (Shore A)", ccText(row, "SHORE_A_HARDNESS", "shoreAHardness"));
-                addKV(t, "Date/Time of Dispatch for De-coring",
+                addKV(t, "Date & Time of Dispatch for De-coring",
                         ccDateTime(row, "DE_CORING_DISPATCH_DATE_TIME",
                                 "deCoringDispatchDateTime", null));
                 doc.add(t);
@@ -2457,7 +2469,7 @@ public class FormPdfService {
                 PdfPTable t = createKeyValueTable();
                 addKV(t, "Date & Time of De-coring", ccText(row,
                         "DECORING_DATE_TIME", "decoringDateTime", "DECORING_DATE", "decoringDate"));
-                addKV(t, "Building No", ccText(row, "BUILDING_NO", "buildingNo"));
+                addKV(t, "Building No", ccBuildingName(ccText(row, "BUILDING_NO", "buildingNo")));
                 addKV(t, "De-coring Load (kg)", ccText(row, "DECORING_LOAD", "decoringLoad"));
                 addKV(t, "Propellent Temperature (Celcius)", ccText(row,
                         "PROPELLANT_TEMPERATURE", "propellantTemperature"));
@@ -2698,6 +2710,16 @@ public class FormPdfService {
         String text = str(value);
         if ("—".equals(text) || text.toLowerCase().endsWith(unit.toLowerCase())) return text;
         return text + " " + unit;
+    }
+
+    private String ccBuildingName(String buildingCode) {
+        if (buildingCode == null || buildingCode.isBlank() || buildingMasterRepository == null) {
+            return buildingCode;
+        }
+        return buildingMasterRepository.findByCode(buildingCode)
+                .map(BuildingMaster::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(buildingCode);
     }
 
     private String ccDateTime(
@@ -3972,7 +3994,7 @@ public class FormPdfService {
                 .toUpperCase(java.util.Locale.ROOT);
     }
 
-    private void renderNdtDetails(Document doc, NdtDetailsResponse data) throws DocumentException {
+    private void renderNdtDetails(Document doc, NdtResponse data) throws DocumentException {
         if (data == null || data.getMotors() == null || data.getMotors().isEmpty()) {
             doc.add(new Paragraph("No NDT details available.", BODY_FONT));
             return;
@@ -4001,12 +4023,12 @@ public class FormPdfService {
 
 
 
-        for (Map<String, Object> motorMap : data.getMotors()) {
-            String motorId = ccText(motorMap, "motorId", "motorIdNo");
+        for (NdtMotorDto motorMap : data.getMotors()) {
+            String motorId = ccText((Map<String, Object>) motorMap, "motorId", "motorIdNo");
             addPlainMotorStatusHeader(doc, motorId, ndtMotorStatus(data, motorMap, motorId));
 
             Map<String, Object> radiography = qcObjectMap(
-                    qcValue(motorMap, "radiographyDetails"));
+                    qcValue((Map<String, Object>) motorMap, "radiographyDetails"));
             if (!radiography.isEmpty()) {
                 addCcTitle(doc, "Radiography setup");
                 PdfPTable setupTable = createTable(new float[]{38, 62});
@@ -4045,7 +4067,7 @@ public class FormPdfService {
             }
 
             List<Map<String, Object>> additionalExposures = qcMapList(
-                    qcValue(motorMap, "additionalExposureDetails"));
+                    qcValue((Map<String, Object>) motorMap, "additionalExposureDetails"));
             if (!additionalExposures.isEmpty()) {
                 addCcTitle(doc, "Additional exposure details");
                 PdfPTable table = createTable(new float[]{30, 35, 35});
@@ -4059,7 +4081,7 @@ public class FormPdfService {
             }
 
             List<Map<String, Object>> radiographyObservations = qcMapList(
-                    qcValue(motorMap, "radiographyObservations"));
+                    qcValue((Map<String, Object>) motorMap, "radiographyObservations"));
             if (!radiographyObservations.isEmpty()) {
                 addCcTitle(doc, "Observation in radiography");
                 PdfPTable table = createTable(new float[]{15, 18, 27, 40});
@@ -4075,7 +4097,7 @@ public class FormPdfService {
             }
 
             List<Map<String, Object>> visualInspections = qcMapList(
-                    qcValue(motorMap, "visualInspectionDetails"));
+                    qcValue((Map<String, Object>) motorMap, "visualInspectionDetails"));
             if (!visualInspections.isEmpty()) {
                 addCcTitle(doc, "Visual inspection");
                 PdfPTable table = createTable(new float[]{40, 12, 13, 35});
@@ -4095,19 +4117,19 @@ public class FormPdfService {
                 doc.add(table);
             }
 
-            Object visualMedia = qcValue(motorMap, "uploadedVideos", "visualInspectionMedia");
+            Object visualMedia = qcValue((Map<String, Object>) motorMap, "uploadedVideos", "visualInspectionMedia");
             if (hasQcDisplayValue(visualMedia)) {
                 addCcTitle(doc, "Visual inspection media");
                 doc.add(new Paragraph(qcDisplayValue(visualMedia), BODY_FONT));
             }
 
-            Object signedReport = qcValue(motorMap, "signedNdtReport");
+            Object signedReport = qcValue((Map<String, Object>) motorMap, "signedNdtReport");
             if (hasQcDisplayValue(signedReport)) {
                 addCcTitle(doc, "Signed NDT report");
                 doc.add(new Paragraph(qcDisplayValue(signedReport), BODY_FONT));
             }
 
-            Object additionalRemarks = qcValue(motorMap, "additionalRemarks");
+            Object additionalRemarks = qcValue((Map<String, Object>) motorMap, "additionalRemarks");
             if (hasQcDisplayValue(additionalRemarks)) {
                 addCcTitle(doc, "Additional remarks");
                 doc.add(new Paragraph(qcDisplayValue(additionalRemarks), BODY_FONT));
@@ -4117,10 +4139,10 @@ public class FormPdfService {
     }
 
     private String ndtMotorStatus(
-            NdtDetailsResponse data,
-            Map<String, Object> motor,
+            NdtResponse data,
+            NdtMotorDto motor,
             String motorId) {
-        Object savedStatus = qcValue(motor, "motorSubmissionStatus", "approvalStatus");
+        Object savedStatus = qcValue((Map<String, Object>) motor, "motorSubmissionStatus", "approvalStatus");
         if (savedStatus != null) return workflowStatusLabel(savedStatus);
         if (data.getMotorStatuses() != null) {
             for (MotorStatusResponse status : data.getMotorStatuses()) {
@@ -4974,7 +4996,7 @@ public class FormPdfService {
         if (he == null) he = qcValue(punctures, "he", "headEnd");
         if (ne == null) ne = qcValue(punctures, "ne", "nozzleEnd");
         Object dispatchDateTime = qcValue(dispatch,
-                "dispatchDateTime", "dateTimeOfDispatch", "motorDispatchDateTime");
+                "dispatchDateTime", "dispatchTime", "dateTimeOfDispatch", "motorDispatchDateTime");
 
         if (hasQcDisplayValue(he)
                 || hasQcDisplayValue(ne)
@@ -4997,9 +5019,9 @@ public class FormPdfService {
             }
             if (hasQcDisplayValue(dispatchDateTime)) {
                 addCell(dispatchTable,
-                        "Date and Time of dispatch of motor to casting division",
-                        BODY_FONT, WHITE);
-                addCell(dispatchTable, str(dispatchDateTime), BODY_FONT, WHITE);
+                        "Dispatch Date & Time",
+                        BODY_FONT, ROW_ALT);
+                addCell(dispatchTable, str(dispatchDateTime), BODY_FONT, ROW_ALT);
             }
             doc.add(dispatchTable);
         }
@@ -5879,6 +5901,16 @@ public class FormPdfService {
             return file != null ? str(file) : qcDisplayValue(map);
         }
         return qcDisplayValue(value);
+    }
+
+    private String ccCastingActivityLabel(String value) {
+        if (value == null) return null;
+        return switch (normalizePdfKey(value)) {
+            case "SOAKINGTIME" -> "Soaking Date & Time";
+            case "TIMEOFREMOVALFROMPIT" -> "Date & Time of Removal from Pit";
+            case "TIMEOFDISPATCHTOCURINGSTATION" -> "Date & Time of Dispatch to Curing Station";
+            default -> value;
+        };
     }
 
     private void addQcEvaluationHeading(Document doc, String heading, int depth)
@@ -6971,7 +7003,7 @@ public class FormPdfService {
         }
     }
 
-    public void renderStfDetails(Document doc, StfDetailsResponse data) throws DocumentException {
+    public void renderStfDetails(Document doc, StfResponse data) throws DocumentException {
         if (data == null || data.getMotors() == null || data.getMotors().isEmpty()) {
             doc.add(new Paragraph("No structural evaluation records found for Static Testing (STF) Form.", BODY_FONT));
             return;

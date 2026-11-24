@@ -11,6 +11,8 @@ import in.co.bel.acempp.dto.castingcuring.CastingCuringSectionPayloads.CuringCyc
 import in.co.bel.acempp.dto.castingcuring.CastingCuringSectionPayloads.CuringCycles;
 import in.co.bel.acempp.dto.castingcuring.CastingCuringSectionPayloads.CuringSections;
 import in.co.bel.acempp.dto.form.FormPdfRequest;
+import in.co.bel.acempp.entity.batch.BuildingMaster;
+import in.co.bel.acempp.repository.BuildingMasterRepository;
 import in.co.bel.acempp.service.manufacturing.CastingCuringService;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +20,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,6 +32,46 @@ import static org.mockito.Mockito.when;
 class FormPdfServiceCastingCuringTest {
 
     @Test
+    void rendersCastingDateTimeLabelsWithDatePrefix() throws Exception {
+        FormPdfService service = new FormPdfService(
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, new ObjectMapper(), null, null, null, null, null);
+        Method labelMethod = FormPdfService.class.getDeclaredMethod("ccCastingActivityLabel", String.class);
+        labelMethod.setAccessible(true);
+
+        assertTrue(labelMethod.invoke(service, "Soaking Time").equals("Soaking Date & Time"));
+        assertTrue(labelMethod.invoke(service, "Time of removal from pit").equals("Date & Time of Removal from Pit"));
+        assertTrue(labelMethod.invoke(service, "timeOfDispatchToCuringStation")
+                .equals("Date & Time of Dispatch to Curing Station"));
+    }
+
+    @Test
+    void resolvesDecoringBuildingCodeToBuildingName() throws Exception {
+        AtomicReference<String> queriedCode = new AtomicReference<>();
+        BuildingMasterRepository buildingRepository = (BuildingMasterRepository)
+                java.lang.reflect.Proxy.newProxyInstance(
+                        BuildingMasterRepository.class.getClassLoader(),
+                        new Class<?>[]{BuildingMasterRepository.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("findByCode")) {
+                                queriedCode.set((String) args[0]);
+                                return Optional.of(BuildingMaster.builder()
+                                        .code("BLD-4").name("Assembly Building").build());
+                            }
+                            throw new UnsupportedOperationException(method.getName());
+                        });
+        FormPdfService service = new FormPdfService(
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, new ObjectMapper(), null, null, null, null,
+                buildingRepository);
+        Method resolveMethod = FormPdfService.class.getDeclaredMethod("ccBuildingName", String.class);
+        resolveMethod.setAccessible(true);
+
+        assertTrue(resolveMethod.invoke(service, "BLD-4").equals("Assembly Building"));
+        assertTrue("BLD-4".equals(queriedCode.get()));
+    }
+
+    @Test
     void rendersCuringCycleDateTimesAsDayMonthYear() throws Exception {
         CastingCuringService castingCuringService = mock(CastingCuringService.class);
         FormPdfService service = new FormPdfService(
@@ -34,7 +79,7 @@ class FormPdfServiceCastingCuringTest {
                 null, null, null, null, new ObjectMapper()
                         .registerModule(new JavaTimeModule())
                         .registerModule(new JacksonDateTimeConfig().flexibleDateInputModule()),
-                null, null, null, null);
+                null, null, null, null, null);
         CuringCycle cycle = CuringCycle.builder()
                 .srNo(1)
                 .temperature(BigDecimal.valueOf(80))

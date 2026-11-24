@@ -5,6 +5,7 @@ import in.co.bel.acempp.dto.general.ApproverStatusResponse;
 import in.co.bel.acempp.dto.general.PersonInfo;
 import in.co.bel.acempp.dto.general.ProjectDto;
 import in.co.bel.acempp.dto.file.FileBindingScope;
+import in.co.bel.acempp.dto.ndt.motor.RadiographyPlanDetailsDto;
 import in.co.bel.acempp.dto.rocketmotorcasing.*;
 import in.co.bel.acempp.dto.rocketmotorcasing.embeddeddocuments.*;
 import in.co.bel.acempp.entity.FileAttachments;
@@ -36,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.*;
@@ -48,6 +50,8 @@ import java.util.stream.Collectors;
 public class RocketMotorCasingService {
 
     private static final Pattern MOTOR_ID_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9 /_-]*$");
+    /** Matches FE VALIDATIONSTRING.LENGTH.MAX_STANDARD */
+    private static final int MAX_STANDARD_FIELD_LENGTH = 100;
     private static final Pattern ALPHA_NUM_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9 /_-]*$");
 
     private final RocketMotorCasingRepository repository;
@@ -633,6 +637,8 @@ public class RocketMotorCasingService {
             errors.put("motorId", "motorId is required");
         } else if (!MOTOR_ID_PATTERN.matcher(motorId.trim()).matches()) {
             errors.put("motorId", "motorId is invalid");
+        } else if (motorId.trim().length() > MAX_STANDARD_FIELD_LENGTH) {
+            errors.put("motorId", "motorId cannot exceed " + MAX_STANDARD_FIELD_LENGTH + " characters");
         }
     }
 
@@ -945,6 +951,8 @@ public class RocketMotorCasingService {
         }
         if (calibration.getCalibrationDueDate() == null) {
             errors.put("calibrationDueDate", "calibrationDueDate is required");
+        } else if (calibration.getCalibrationDueDate().isBefore(LocalDate.now())) {
+            errors.put("calibrationDueDate", "calibrationDueDate cannot be in the past");
         }
     }
 
@@ -1112,9 +1120,13 @@ public class RocketMotorCasingService {
     private void validateRadiographyForSubmit(RadiographyDetails radiography, Map<String, String> errors) {
         if (radiography == null || isBlank(radiography.getRadiographyPlanName())) {
             errors.put("radiographyPlanName", "radiographyPlanName is required");
+        } else if (radiography.getRadiographyPlanName().trim().length() > MAX_STANDARD_FIELD_LENGTH) {
+            errors.put(
+                    "radiographyPlanName",
+                    "radiographyPlanName cannot exceed " + MAX_STANDARD_FIELD_LENGTH + " characters");
         }
 
-        List<RadiographyPlanDetails> rows =
+        List<RadiographyPlanDetailsDto> rows =
                 radiography != null ? radiography.getRadiographyPlanDetails() : null;
         if (rows == null || rows.isEmpty()) {
             errors.put("radiographyPlanRows", "At least one radiography plan row is required");
@@ -1122,7 +1134,7 @@ public class RocketMotorCasingService {
         }
 
         for (int i = 0; i < rows.size(); i++) {
-            RadiographyPlanDetails row = rows.get(i);
+            RadiographyPlanDetailsDto row = rows.get(i);
             if (row == null) {
                 errors.put("radiographyPlanRows." + i + ".sections", "sections is required");
                 continue;

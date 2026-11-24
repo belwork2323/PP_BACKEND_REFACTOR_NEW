@@ -106,7 +106,7 @@ public class AdminController {
     @Audit(action = AuditAction.DELETE_USER)
     @DeleteMapping("/user")
     public ResponseEntity<AcemResponse<DeleteUserResponse>> deleteUser(@Valid @RequestBody UserUuidRequest request) {
-        return AcemTemplate.success(userService.deleteUser(request), "User deleted successfully");
+        return AcemTemplate.success(userService.deleteUser(request), "User Deactivated successfully");
     }
 
     // Activate User (soft-reactivate after delete/INACTIVE)
@@ -149,7 +149,7 @@ public class AdminController {
         return AcemTemplate.success(response, "Project updated successfully");
     }
 
-    @PreAuthorize("hasAnyAuthority('Admin','User', 'Centre Head')")
+    @PreAuthorize("hasAnyAuthority('Admin','User', 'Approver', 'Centre Head')")
     @PostMapping("/project/list")
     public ResponseEntity<AcemResponse<ProjectListResponse>> getProjectList(@Valid @RequestBody ProjectListRequest
                                                                                         request) {

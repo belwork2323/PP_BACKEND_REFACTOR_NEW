@@ -36,6 +36,7 @@ public class CastingCuringMotor {
 
     private Status motorSubmissionType;
     private Status motorSubmissionStatus; // Present in response/model
+    private String rejectionReason;
 
     @Valid
     private CastingSetup setup;

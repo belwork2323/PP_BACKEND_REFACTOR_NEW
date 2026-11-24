@@ -15,5 +15,6 @@ public class DispatchMotor {
     private String motorId;
     private Status motorSubmissionType;
     private Status motorSubmissionStatus;
+    private String rejectionReason;
     private DispatchDetails dispatchDetails;
 }

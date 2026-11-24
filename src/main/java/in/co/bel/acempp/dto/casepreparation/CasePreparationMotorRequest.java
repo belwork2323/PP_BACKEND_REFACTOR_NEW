@@ -24,6 +24,7 @@ public class CasePreparationMotorRequest {
     private LocalDate prrcClearanceDate;
     private Status motorSubmissionType;
     private Status motorSubmissionStatus;
+    private String rejectionReason;
     @Valid
     private AbradingOperation abradingOperation;
     @Valid

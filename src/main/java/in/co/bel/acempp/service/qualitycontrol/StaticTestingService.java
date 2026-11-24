@@ -35,7 +35,6 @@ import in.co.bel.acempp.service.FileMetadataEnrichmentService;
 import in.co.bel.acempp.service.FileReadOnlyService;
 import in.co.bel.acempp.service.FormIdGeneratorService;
 import in.co.bel.acempp.util.ApprovalStatusUtil;
-import in.co.bel.acempp.util.DateTimeConversionUtil;
 import in.co.bel.acempp.service.SubscaleMetadataResolver;
 import in.co.bel.acempp.dto.subscale.subscalecreation.HardwarePreparationDetailsDTO;
 import lombok.RequiredArgsConstructor;
@@ -71,7 +70,7 @@ public class StaticTestingService {
     private final MainBatchGateValidator mainBatchGateValidator;
     private final in.co.bel.acempp.service.ApprovalBlockchainAssetService approvalBlockchainAssetService;
 
-    public StfCreateResponse createForm(CreateStfRequest request, String userId) {
+    public StfResponse createForm(CreateStfRequest request, String userId) {
         ApprovalStatusUtil.requireDraftFormWorkflow(request.getFormSubmissionType());
         Batch batch = getBatch(request.getBatchId());
         validateCurrentStage(batch, request.getSubDepartmentId());
@@ -119,13 +118,16 @@ public class StaticTestingService {
 
             MotorCounts counts = countMotors(motors);
             log.info("Static Testing form {} created by {}", formId, userId);
-            return StfCreateResponse.builder()
+            return StfResponse.builder()
                     .formId(formId)
                     .batchId(batch.getBatchId())
                     .formStatus(formStatus)
                     .motorCount(motors.size())
-                    .motors(motorIds(motors))
-                    .createdBy(userId)
+                    .motors(motors)
+                    .createdBy(PersonInfo.builder()
+                            .id(userId)
+                            .fullName(creator.getUsername())
+                            .build())
                     .createdOn(now)
                     .allMotorsApproved(allEligibleMotorsApproved(motors, eligibleMotors))
                     .pendingMotorCount(counts.pending())
@@ -152,7 +154,7 @@ public class StaticTestingService {
     // ==========================================
 // 2. FILE PROMOTION, PURGE & ROLLBACK IN UPDATE FORM
 // ==========================================
-    public StfUpdateResponse updateForm(UpdateStfRequest request, String userId) {
+    public StfResponse updateForm(CreateStfRequest request, String userId) {
         ApprovalStatusUtil.requireDraftFormWorkflow(request.getFormSubmissionType());
         StaticTesting form = stfRepo.findByFormIdAndIsDeletedFalse(request.getFormId())
                 .orElseThrow(() -> new AcemException(
@@ -225,6 +227,7 @@ public class StaticTestingService {
                             ErrorCode.FORM_ALREADY_EXISTS,
                             "Motor " + incoming.getMotorId() + " cannot be modified while it is waiting or approved");
                 }
+                incoming.setRejectionReason(null);
                 existingById.put(incoming.getMotorId(), incoming);
             }
 
@@ -259,7 +262,7 @@ public class StaticTestingService {
             form.setUpdatedBy(person(updater));
             form.setUpdatedAt(now);
             form.setRemarks(null);
-            form.setRejectionReason(null);
+            form.setRejectionReason(resolveFormRejectionReasonFromMotors(updatedMotors));
             StaticTesting savedForm = stfRepo.save(form);
 
             List<MotorStatusResponse> motorStatuses = buildFullMotorStatuses(batch, updatedMotors, eligibleMotors);
@@ -413,7 +416,7 @@ public class StaticTestingService {
         return fileIds;
     }
 
-    public StfDetailsResponse getFormDetails(String formId) {
+    public StfResponse getFormDetails(String formId) {
         StaticTesting form = stfRepo.findByFormIdAndIsDeletedFalse(formId)
                 .orElseThrow(() -> new AcemException(
                         ErrorCode.FORM_NOT_FOUND,
@@ -424,13 +427,13 @@ public class StaticTestingService {
         MotorCounts counts = countMotors(motors);
         enrichStfMotorFiles(motors, form.getSubDepartmentId());
 
-        return StfDetailsResponse.builder()
+        return StfResponse.builder()
                 .formId(form.getFormId())
                 .batchId(form.getBatchId())
                 .subDepartmentId(form.getSubDepartmentId())
                 .formSubmissionType(form.getFormSubmissionType())
                 .formStatus(form.getStatus())
-                .createdBy(batch.getCreatedBy() != null ? batch.getCreatedBy().getId() : null)
+                .createdBy(batch.getCreatedBy() != null ? batch.getCreatedBy() : null)
                 .createdAt(batch.getCreatedAt())
                 .submittedBy(form.getCreatedBy())
                 .submittedAt(form.getCreatedAt())
@@ -476,13 +479,17 @@ public class StaticTestingService {
         }
 
         motor.setMotorSubmissionStatus(request.getActionType());
+        if (request.getActionType() == Status.REJECTED) {
+            motor.setRejectionReason(request.getRejectionReason());
+        } else {
+            motor.setRejectionReason(null);
+        }
         User approver = getUser(approverUserId);
         LocalDateTime now = LocalDateTime.now();
         form.setUpdatedBy(person(approver));
         form.setUpdatedAt(now);
         form.setRemarks(request.getActionType() == Status.APPROVED ? request.getRemarks() : null);
-        form.setRejectionReason(request.getActionType() == Status.REJECTED
-                ? request.getRejectionReason() : null);
+        form.setRejectionReason(resolveFormRejectionReasonFromMotors(safeMotors(form)));
 
         Batch batch = getBatch(form.getBatchId());
         LinkedHashMap<String, StfMotorSubType> eligibleMotors = eligibleMotors(batch);
@@ -741,10 +748,23 @@ public class StaticTestingService {
                     .motorSubmissionStatus(submissionType == Status.DRAFT
                             ? Status.IN_PROGRESS
                             : Status.WAITING_FOR_APPROVAL)
+                    .rejectionReason(null)
                     .staticTestingDetails(motorForm.getStaticTestingDetails())
                     .build());
         }
         return new ArrayList<>(motorsById.values());
+    }
+
+    private static String resolveFormRejectionReasonFromMotors(List<StaticMotorData> motors) {
+        if (motors == null) {
+            return null;
+        }
+        return motors.stream()
+                .filter(m -> m != null && m.getMotorSubmissionStatus() == Status.REJECTED)
+                .map(StaticMotorData::getRejectionReason)
+                .filter(r -> r != null && !r.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private LinkedHashMap<String, StfMotorSubType> eligibleMotors(Batch batch) {
@@ -809,8 +829,9 @@ public class StaticTestingService {
                     .motorSubmissionType(motor == null ? Status.DRAFT : motorSubmissionType(motor))
                     .motorSubmissionStatus(motor == null
                             ? MainBatchStageProgressHelper.defaultMotorSubmissionStatus(
-                                    batch, MainBatchStageConstants.STF, motorId)
+                            batch, MainBatchStageConstants.STF, motorId)
                             : motorStatus(motor))
+                    .rejectionReason(motor == null ? null : motor.getRejectionReason())
                     .build());
         });
         return BatchMotorDiscardHelper.overlayMotorStatuses(batch, statuses);
@@ -890,7 +911,7 @@ public class StaticTestingService {
         });
     }
 
-    private StfUpdateResponse buildUpdateResponse(
+    private StfResponse buildUpdateResponse(
             StaticTesting form,
             List<StaticMotorData> motors,
             Map<String, StfMotorSubType> eligibleMotors,
@@ -899,13 +920,18 @@ public class StaticTestingService {
             String userId,
             LocalDateTime now,
             boolean finalSubmit) {
-        StfUpdateResponse.StfUpdateResponseBuilder response = StfUpdateResponse.builder()
+        User creator = getUser(userId);
+
+        StfResponse.StfResponseBuilder response = StfResponse.builder()
                 .formId(form.getFormId())
                 .batchId(form.getBatchId())
                 .formStatus(form.getStatus())
                 .motorCount(motors.size())
-                .motors(motorIds(motors))
-                .updatedBy(userId)
+                .motors(motors)
+                .updatedBy(PersonInfo.builder()
+                        .id(userId)
+                        .fullName(creator.getUsername())
+                        .build())
                 .updatedOn(now)
                 .allMotorsApproved(allEligibleMotorsApproved(motors, eligibleMotors))
                 .pendingMotorCount(counts.pending())
@@ -915,19 +941,13 @@ public class StaticTestingService {
                 .totalMotorCount(eligibleMotors.size())
                 .motorStatuses(motorStatuses);
         if (finalSubmit) {
-            response.submittedBy(userId)
+            response.submittedBy(PersonInfo.builder()
+                            .id(userId)
+                            .fullName(creator.getUsername())
+                            .build())
                     .submittedOn(now);
         }
         return response.build();
-    }
-
-    private List<MotorIdDto> motorIds(List<StaticMotorData> motors) {
-        return motors.stream()
-                .map(motor -> MotorIdDto.builder()
-                        .motorId(motor.getMotorId())
-                        .subType(motor.getSubType())
-                        .build())
-                .toList();
     }
 
     private boolean hasSubmittedMotor(List<StaticMotorData> motors) {

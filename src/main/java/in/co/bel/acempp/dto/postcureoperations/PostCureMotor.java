@@ -47,6 +47,8 @@ public class PostCureMotor {
 
     private Status motorSubmissionStatus;
 
+    private String rejectionReason;
+
     @Valid
     private LooseFlapFillingDetails looseFlapFillingDetails;
 

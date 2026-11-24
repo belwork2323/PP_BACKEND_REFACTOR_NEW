@@ -8,11 +8,6 @@ import lombok.Data;
 @Data
 public class LoginRequest {
     @NotBlank(message = "User ID is required")
-    @Size(min = 4, max = 50, message = "User ID must be between 4 and 50 characters")
-    @Pattern(
-            regexp = "^[a-zA-Z0-9._@-]+$",
-            message = "User ID can contain only letters, numbers, ., _, @ and -"
-    )
     private String userId;
 
 //    @NotBlank(message = "Password is required")

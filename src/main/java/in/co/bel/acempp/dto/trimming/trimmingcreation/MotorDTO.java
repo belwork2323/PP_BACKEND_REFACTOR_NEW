@@ -54,4 +54,6 @@ public class MotorDTO {
     private String motorSubmissionType;
 
     private Status motorSubmissionStatus;
+
+    private String rejectionReason;
 }

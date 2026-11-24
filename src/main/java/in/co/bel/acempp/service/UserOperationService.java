@@ -47,6 +47,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +68,10 @@ public class UserOperationService {
     private final InsulationSpecificationRepository insRepository;
     private final ProjectRepository projectRepo;
     private final StageProgressDisplayEnricher stageProgressDisplayEnricher;
-
+    private static final Set<String> WAITING_APPROVAL_GROUP = Set.of(
+            "WAITING_FOR_PARTIAL_APPROVAL",
+            "WAITING_FOR_APPROVAL"
+    );
 
     // ─────────────────────────── MATERIALS LIST ───────────────────────────
     public List<MaterialDto> getMaterialsList(MaterialListRequest request) {
@@ -142,13 +146,35 @@ public class UserOperationService {
     public UserBatchListResponse getBatchList(UserBatchListRequest request) {
         Long subDeptId = request.getSubDepartmentId();
 
+        if (request.getFromDate() != null && request.getToDate() != null
+                && request.getFromDate().isAfter(request.getToDate())) {
+            throw new AcemException(
+                    ErrorCode.INVALID_DATE_RANGE,
+                    "Invalid date range",
+                    "fromDate cannot be after toDate");
+        }
+
         // Validate sub‑department exists
         departmentRepo.findBySubDepartmentsSubDepartmentId(subDeptId)
                 .orElseThrow(() -> new AcemException(ErrorCode.SUB_DEPARTMENTS_NOT_FOUND,
                         "SubDepartment not found: " + subDeptId));
 
-        List<String> statuses = (request.getStatus() != null && !request.getStatus().isEmpty())
-                ? request.getStatus() : null;
+        List<String> statuses = null;
+        if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+            List<String> expanded = request.getStatus().stream()
+                    .filter(Objects::nonNull)
+                    .map(s -> s.trim().replace(" ", "_").toUpperCase(Locale.ROOT))
+                    .filter(s -> !s.isBlank())
+                    .flatMap(status -> WAITING_APPROVAL_GROUP.contains(status)
+                            ? WAITING_APPROVAL_GROUP.stream()
+                            : Stream.of(status))
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            if (!expanded.isEmpty()) {
+                statuses = expanded;
+            }
+        }
         List<String> priorities = (request.getPriority() != null && !request.getPriority().isEmpty())
                 ? request.getPriority() : null;
         List<String> batchIds = (request.getBatchIds() != null && !request.getBatchIds().isEmpty())
@@ -419,9 +445,10 @@ public class UserOperationService {
                         "fromDate cannot be after toDate"
                 );
             }
-            query.addCriteria(Criteria.where("sections.motorReceipt.receivingDate")
-                            .gte(request.getFromDate())
-                            .lte(request.getToDate())
+            // Filter by Created On (entity createdAt), matching the list Created On column.
+            query.addCriteria(Criteria.where("createdAt")
+                            .gte(request.getFromDate().atStartOfDay())
+                            .lte(request.getToDate().atTime(23, 59, 59))
             );
         }
 
@@ -501,7 +528,11 @@ public class UserOperationService {
             counts.setWaitingForPartialApproval(null);
             counts.setWaitingForCompleteApproval(null);
             counts.setFinalApprovalCompleted(null);
-        } else {
+        }else if(subDeptId == 8){
+            counts.setWaitingForPartialApproval(null);
+            counts.setApproved(null);
+        }
+        else {
             counts.setApproved(null);
             counts.setWaitingForApproval(null);
         }
