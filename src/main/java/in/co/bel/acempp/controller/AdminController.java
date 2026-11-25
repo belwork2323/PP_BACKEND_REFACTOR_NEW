@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('Admin', 'Centre Head')")
+@PreAuthorize("hasAnyAuthority('Admin', 'Centre Head' , 'System Manager')")
 public class AdminController {
 
     private final UserService userService;

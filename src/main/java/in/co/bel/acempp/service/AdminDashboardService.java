@@ -23,18 +23,16 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.time.DayOfWeek.*;
-
-import java.time.LocalTime;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +42,9 @@ public class AdminDashboardService {
     private final UserRepository userRepo;
     private final BatchRepository batchRepo;
     private final BatchProgressCalculator batchProgressCalculator;
-
+    private static final DateTimeFormatter DAY_LABEL_FORMATTER = DateTimeFormatter.ofPattern("dd MMM");
+    private static final DateTimeFormatter MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMM yy");
+    private static final DateTimeFormatter INPUT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     // ─────────────────────────────────────────────────────────
     // 1. DASHBOARD STATS
     // ─────────────────────────────────────────────────────────
@@ -101,25 +101,151 @@ public class AdminDashboardService {
                 .build();
     }
 
-    // ─────────────────────────────────────────────────────────
-    // 2. CHART DATA
-    // ─────────────────────────────────────────────────────────
     public ChartDataResponse getChartData(DashboardStatsRequest request) {
-        String filterType = request.getFilterType();
-        DateRange range = resolveDateRange(filterType,
-                request.getStartDate(), request.getEndDate());
+        if (!"custom".equalsIgnoreCase(request.getFilterType())) {
+            throw new AcemException(ErrorCode.INVALID_REQUEST,
+                    "Invalid filter type. Only 'custom' is supported.");
+        }
+
+        if (request.getStartDate() == null || request.getEndDate() == null) {
+            throw new AcemException(ErrorCode.INVALID_REQUEST,
+                    "startDate and endDate are required for custom filter.");
+        }
+
+        LocalDate startDate = LocalDate.parse(request.getStartDate(), INPUT_DATE_FORMATTER);
+        LocalDate endDate = LocalDate.parse(request.getEndDate(), INPUT_DATE_FORMATTER);
+
+        if (endDate.isBefore(startDate)) {
+            throw new AcemException(ErrorCode.INVALID_REQUEST,
+                    "endDate cannot be before startDate.");
+        }
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay();
 
         List<Batch> batches = batchRepo.findByCreatedAtBetweenAndIsDeletedFalse(
-                range.start(), range.end());
+                startDateTime, endDateTime);
 
-        return switch (filterType) {
-            case "day" -> buildDayChart(batches, range);
-            case "week" -> buildWeekChart(batches, range);
-            case "month" -> buildMonthChart(batches, range);
-            case "custom" -> buildCustomChart(batches, range);
-            default -> throw new AcemException(ErrorCode.INVALID_REQUEST,
-                    "Invalid filter type. Allowed values are day, week, or month");
-        };
+        long spanDays = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+
+        if (spanDays <= 31) {
+            return buildDailyChart(batches, startDate, endDate);
+        } else if (spanDays <= 90) {
+            return buildWeeklyChart(batches, startDate, endDate);
+        } else {
+            return buildMonthlyChart(batches, startDate, endDate);
+        }
+    }
+
+    public ChartDataResponse buildDailyChart(
+            List<Batch> batches, LocalDate startDate, LocalDate endDate) {
+        Map<LocalDate, List<Batch>> batchesByDay = batches.stream()
+                .filter(b -> b.getCreatedAt() != null)
+                .collect(Collectors.groupingBy(b -> b.getCreatedAt().toLocalDate()));
+
+        List<ChartPoint> activity = new ArrayList<>();
+        List<ChartPoint> motors = new ArrayList<>();
+        List<ChartPoint> qcRate = new ArrayList<>();
+
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            List<Batch> dayBatches = batchesByDay.getOrDefault(date, List.of());
+            appendMetrics(activity, motors, qcRate, date.format(DAY_LABEL_FORMATTER), dayBatches);
+        }
+
+        return ChartDataResponse.builder()
+                .filterType("custom")
+                .timeUnit("day")
+                .weeklyActivity(activity)
+                .motorsProcessed(motors)
+                .qcPassRate(qcRate)
+                .build();
+    }
+
+    public ChartDataResponse buildWeeklyChart(
+            List<Batch> batches, LocalDate startDate, LocalDate endDate) {
+        List<ChartPoint> activity = new ArrayList<>();
+        List<ChartPoint> motors = new ArrayList<>();
+        List<ChartPoint> qcRate = new ArrayList<>();
+
+        LocalDate bucketStart = startDate;
+        while (!bucketStart.isAfter(endDate)) {
+            LocalDate bucketEnd = bucketStart.plusDays(6);
+            if (bucketEnd.isAfter(endDate)) {
+                bucketEnd = endDate;
+            }
+
+            final LocalDate from = bucketStart;
+            final LocalDate to = bucketEnd;
+
+            List<Batch> weekBatches = batches.stream()
+                    .filter(b -> b.getCreatedAt() != null)
+                    .filter(b -> {
+                        LocalDate created = b.getCreatedAt().toLocalDate();
+                        return !created.isBefore(from) && !created.isAfter(to);
+                    })
+                    .toList();
+
+            String label = from.format(DAY_LABEL_FORMATTER) + " - " + to.format(DAY_LABEL_FORMATTER);
+            appendMetrics(activity, motors, qcRate, label, weekBatches);
+
+            bucketStart = bucketEnd.plusDays(1);
+        }
+
+        return ChartDataResponse.builder()
+                .filterType("custom")
+                .timeUnit("week")
+                .weeklyActivity(activity)
+                .motorsProcessed(motors)
+                .qcPassRate(qcRate)
+                .build();
+    }
+
+    public ChartDataResponse buildMonthlyChart(
+            List<Batch> batches, LocalDate startDate, LocalDate endDate) {
+        Map<YearMonth, List<Batch>> batchesByMonth = batches.stream()
+                .filter(b -> b.getCreatedAt() != null)
+                .collect(Collectors.groupingBy(b -> YearMonth.from(b.getCreatedAt())));
+
+        List<ChartPoint> activity = new ArrayList<>();
+        List<ChartPoint> motors = new ArrayList<>();
+        List<ChartPoint> qcRate = new ArrayList<>();
+
+        YearMonth current = YearMonth.from(startDate);
+        YearMonth last = YearMonth.from(endDate);
+
+        while (!current.isAfter(last)) {
+            List<Batch> monthBatches = batchesByMonth.getOrDefault(current, List.of());
+            appendMetrics(activity, motors, qcRate, current.atDay(1).format(MONTH_LABEL_FORMATTER), monthBatches);
+            current = current.plusMonths(1);
+        }
+
+        return ChartDataResponse.builder()
+                .filterType("custom")
+                .timeUnit("month")
+                .weeklyActivity(activity)
+                .motorsProcessed(motors)
+                .qcPassRate(qcRate)
+                .build();
+    }
+
+    public void appendMetrics(
+            List<ChartPoint> activity,
+            List<ChartPoint> motors,
+            List<ChartPoint> qcRate,
+            String label,
+            List<Batch> bucketBatches) {
+        long activityCount = bucketBatches.size();
+        long motorCount = bucketBatches.stream()
+                .filter(this::isDispatched)
+                .mapToLong(b -> b.getMotorIds() != null ? b.getMotorIds().size() : 0)
+                .sum();
+        long qcTotal = bucketBatches.size();
+        long qcPass = bucketBatches.stream().filter(this::isQcPassed).count();
+        long qcRateVal = qcTotal > 0 ? (qcPass * 100 / qcTotal) : 0;
+
+        activity.add(ChartPoint.builder().label(label).value(activityCount).build());
+        motors.add(ChartPoint.builder().label(label).value(motorCount).build());
+        qcRate.add(ChartPoint.builder().label(label).value(qcRateVal).build());
     }
 
 
@@ -392,64 +518,64 @@ public class AdminDashboardService {
         return DateTimeConversionUtil.parseLocalDate(date).atStartOfDay();
     }
 
-    private ChartDataResponse buildCustomChart(List<Batch> batches, DateRange range) {
-
-        List<ChartPoint> activity = new ArrayList<>();
-        List<ChartPoint> motors = new ArrayList<>();
-        List<ChartPoint> qcRate = new ArrayList<>();
-
-        LocalDate start = range.start().toLocalDate();
-        LocalDate end = range.end().toLocalDate();
-
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-
-            LocalDate current = date;
-
-            List<Batch> dayBatches = batches.stream()
-                    .filter(b -> b.getCreatedAt().toLocalDate().equals(current))
-                    .toList();
-
-            long activityCount = dayBatches.size();
-
-            long motorCount = dayBatches.stream()
-                    .filter(this::isDispatched)
-                    .mapToLong(b -> b.getMotorIds().size())
-                    .sum();
-
-            long qcPass = dayBatches.stream()
-                    .filter(this::isQcPassed)
-                    .count();
-
-            long qcRateValue = activityCount > 0
-                    ? (qcPass * 100 / activityCount)
-                    : 0;
-
-            String label = current.format(DateTimeFormatter.ofPattern("dd-MM"));
-
-            activity.add(ChartPoint.builder()
-                    .label(label)
-                    .value(activityCount)
-                    .build());
-
-            motors.add(ChartPoint.builder()
-                    .label(label)
-                    .value(motorCount)
-                    .build());
-
-            qcRate.add(ChartPoint.builder()
-                    .label(label)
-                    .value(qcRateValue)
-                    .build());
-        }
-
-        return ChartDataResponse.builder()
-                .filterType("custom")
-                .timeUnit("day")
-                .weeklyActivity(activity)
-                .motorsProcessed(motors)
-                .qcPassRate(qcRate)
-                .build();
-    }
+//    private ChartDataResponse buildCustomChart(List<Batch> batches, DateRange range) {
+//
+//        List<ChartPoint> activity = new ArrayList<>();
+//        List<ChartPoint> motors = new ArrayList<>();
+//        List<ChartPoint> qcRate = new ArrayList<>();
+//
+//        LocalDate start = range.start().toLocalDate();
+//        LocalDate end = range.end().toLocalDate();
+//
+//        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+//
+//            LocalDate current = date;
+//
+//            List<Batch> dayBatches = batches.stream()
+//                    .filter(b -> b.getCreatedAt().toLocalDate().equals(current))
+//                    .toList();
+//
+//            long activityCount = dayBatches.size();
+//
+//            long motorCount = dayBatches.stream()
+//                    .filter(this::isDispatched)
+//                    .mapToLong(b -> b.getMotorIds().size())
+//                    .sum();
+//
+//            long qcPass = dayBatches.stream()
+//                    .filter(this::isQcPassed)
+//                    .count();
+//
+//            long qcRateValue = activityCount > 0
+//                    ? (qcPass * 100 / activityCount)
+//                    : 0;
+//
+//            String label = current.format(DateTimeFormatter.ofPattern("dd-MM"));
+//
+//            activity.add(ChartPoint.builder()
+//                    .label(label)
+//                    .value(activityCount)
+//                    .build());
+//
+//            motors.add(ChartPoint.builder()
+//                    .label(label)
+//                    .value(motorCount)
+//                    .build());
+//
+//            qcRate.add(ChartPoint.builder()
+//                    .label(label)
+//                    .value(qcRateValue)
+//                    .build());
+//        }
+//
+//        return ChartDataResponse.builder()
+//                .filterType("custom")
+//                .timeUnit("day")
+//                .weeklyActivity(activity)
+//                .motorsProcessed(motors)
+//                .qcPassRate(qcRate)
+//                .build();
+//    }
 
 
 //    private UserListItemDto mapToUserListItem(UserCredentials user) {

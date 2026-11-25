@@ -1,5 +1,6 @@
 package in.co.bel.acempp.dto.dashboard.systemmanagerdashboard;
 
+import in.co.bel.acempp.dto.dashboard.ChartPoint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,9 +20,9 @@ public class ManagerDashboardChartResponse {
 
     private Long totalActiveBatches;
 
-    private List<ChartPointDto> weeklyActivity;
+    private List<ChartPoint> weeklyActivity;
 
-    private List<ChartPointDto> motorsProcessed;
+    private List<ChartPoint> motorsProcessed;
 
     private List<StageProcessedDto> stageProcessed;
 }

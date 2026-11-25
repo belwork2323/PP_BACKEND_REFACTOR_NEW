@@ -2,6 +2,8 @@ package in.co.bel.acempp.repository;
 
 import in.co.bel.acempp.entity.batch.Batch;
 import in.co.bel.acempp.enums.Status;
+import in.co.bel.acempp.service.AdminDashboardService;
+import in.co.bel.acempp.service.BatchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.PageImpl;
 public class SystemManagerDashboardRepository {
 
     private final MongoTemplate mongoTemplate;
+    private final BatchRepository batchRepository;
 //1.STATS
     // Total Batches
     public long countTotalBatches(LocalDateTime start, LocalDateTime end) {
@@ -55,7 +58,8 @@ public class SystemManagerDashboardRepository {
         query.addCriteria(new Criteria().andOperator(
                 Criteria.where("isDeleted").ne(true),
                 Criteria.where("createdAt").gte(start).lte(end),
-                completedBatchCriteria()));
+                BatchRepository.completedBatchCriteria()
+        ));
 
         return mongoTemplate.count(query, Batch.class);
     }
@@ -67,7 +71,7 @@ public class SystemManagerDashboardRepository {
         query.addCriteria(
                 Criteria.where("isDeleted").ne(true)
                         .and("createdAt").gte(start).lte(end)
-                        .and("currentStage").elemMatch(
+                        .and("stageProgress").elemMatch(
                                 Criteria.where("status").in(
                                         Status.WAITING_FOR_APPROVAL,
                                         Status.WAITING_FOR_PARTIAL_APPROVAL))
@@ -157,13 +161,18 @@ public class SystemManagerDashboardRepository {
             hasActiveStageFilter = true;
         }
         // List Type Filter
-        if (listType != null && !listType.isBlank() && !"All".equalsIgnoreCase(listType)) {
+        if (listType != null && !listType.isBlank()
+                && !"All".equalsIgnoreCase(listType)) {
 
             if ("COMPLETED".equalsIgnoreCase(listType)) {
-                query.addCriteria(completedBatchCriteria());
+                query.addCriteria(BatchRepository.completedBatchCriteria());
 
             } else if ("IN_PROGRESS".equalsIgnoreCase(listType)) {
-                query.addCriteria(new Criteria().norOperator(completedBatchCriteria()));
+                query.addCriteria(
+                        new Criteria().norOperator(
+                                BatchRepository.completedBatchCriteria()
+                        )
+                );
             }
         }
         // Department filter
@@ -198,18 +207,5 @@ public class SystemManagerDashboardRepository {
         );
 }
 
-    private Criteria completedBatchCriteria() {
-        return new Criteria().orOperator(
-                new Criteria().andOperator(
-                        Criteria.where("batchType").is("SUBSCALE"),
-                        Criteria.where("stageProgress").elemMatch(
-                                Criteria.where("subDepartmentId").is(12L)
-                                        .and("status").is(Status.COMPLETELY_APPROVED))),
-                new Criteria().andOperator(
-                        Criteria.where("batchType").ne("SUBSCALE"),
-                        Criteria.where("stageProgress").elemMatch(
-                                Criteria.where("subDepartmentId").is(13L)
-                                        .and("status").is(Status.COMPLETELY_APPROVED)))
-        );
-    }
+
 }

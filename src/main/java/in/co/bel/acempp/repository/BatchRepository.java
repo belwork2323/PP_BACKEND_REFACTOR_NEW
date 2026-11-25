@@ -649,18 +649,29 @@ public interface BatchRepository extends MongoRepository<Batch, String> {
                 () -> count
         );
     }
-    private static Criteria completedBatchCriteria() {
+    static Criteria completedBatchCriteria() {
         return new Criteria().orOperator(
+                // SUBSCALE: Both 11 and 12 must be completely approved
                 new Criteria().andOperator(
                         Criteria.where("batchType").is("SUBSCALE"),
                         Criteria.where("stageProgress").elemMatch(
+                                Criteria.where("subDepartmentId").is(11L)
+                                        .and("status").is(Status.COMPLETELY_APPROVED)
+                        ),
+                        Criteria.where("stageProgress").elemMatch(
                                 Criteria.where("subDepartmentId").is(12L)
-                                        .and("status").is(Status.COMPLETELY_APPROVED))),
+                                        .and("status").is(Status.COMPLETELY_APPROVED)
+                        )
+                ),
+
+                // NON-SUBSCALE: 13 must be completely approved
                 new Criteria().andOperator(
                         Criteria.where("batchType").ne("SUBSCALE"),
                         Criteria.where("stageProgress").elemMatch(
                                 Criteria.where("subDepartmentId").is(13L)
-                                        .and("status").is(Status.COMPLETELY_APPROVED)))
+                                        .and("status").is(Status.COMPLETELY_APPROVED)
+                        )
+                )
         );
     }
 

@@ -39,7 +39,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -60,6 +62,9 @@ public class SysMgrDashboardService {
     private final BatchProgressCalculator batchProgressCalculator;
     private final StageProgressDisplayEnricher stageProgressDisplayEnricher;
     private final BatchFormResolver batchFormResolver;
+    private final AdminDashboardService adminDashboardService;
+    private final BatchStateClassifier batchStateClassifier;
+    private final BatchRepository batchRepository;
     private final ObjectMapper objectMapper;
 
     private LocalDateTime parseNullableDate(String date) {
@@ -67,67 +72,42 @@ public class SysMgrDashboardService {
         return DateTimeConversionUtil.parseLocalDate(date).atStartOfDay();
     }
 
-//1. stats
-    public ManagerDashboardStatsResponse getStats(
-            ManagerDashboardStatsRequest request) {
+    public ManagerDashboardStatsResponse getStats(ManagerDashboardStatsRequest request) {
 
         DateRange range = resolveDateRange(
                 request.getFilterType(),
                 request.getStartDate(),
-                request.getEndDate()
-        );
+                request.getEndDate());
 
-        LocalDateTime start = range.start();
-        LocalDateTime end = range.end();
+        List<Batch> batches = batchRepository
+                .findByCreatedAtBetweenAndIsDeletedFalse(range.start(), range.end());
 
-        long totalBatches = dashboardRepo.countTotalBatches(start, end);
+        Map<BatchStateClassifier.BatchState, Long> counts = batchStateClassifier.countByState(batches);
 
-        long inProgressBatches = dashboardRepo.countInProgressBatches(start, end);
-
-        long completedBatches = dashboardRepo.countCompletedBatches(start, end);
-
-        long pendingApprovals = dashboardRepo.countPendingApprovals(start, end);
-
-        long rejectedBatches = dashboardRepo.countRejectedBatches(start, end);
+        long totalBatches = batches.size();
+        long inProgressBatches = counts.getOrDefault(BatchStateClassifier.BatchState.IN_PROGRESS, 0L);
+        long completedBatches = counts.getOrDefault(BatchStateClassifier.BatchState.COMPLETED, 0L);
+        long pendingApprovals = counts.getOrDefault(BatchStateClassifier.BatchState.PENDING, 0L);
+        long rejectedBatches = counts.getOrDefault(BatchStateClassifier.BatchState.REJECTED, 0L);
 
         return ManagerDashboardStatsResponse.builder()
-                .totalBatches(
-                        StatMetric.builder()
-                                .count(totalBatches)
-                                .subValue(totalBatches)
-                                .build()
-                )
-                .inProgressBatches(
-                        StatMetric.builder()
-                                .count(inProgressBatches)
-                                .subValue(inProgressBatches)
-                                .build()
-                )
-                .completedBatches(
-                        StatMetric.builder()
-                                .count(completedBatches)
-                                .subValue(completedBatches)
-                                .build()
-                )
-                .pendingApprovals(
-                        StatMetric.builder()
-                                .count(pendingApprovals)
-                                .subValue(pendingApprovals)
-                                .build()
-                )
-                .rejectedBatches(
-                        StatMetric.builder()
-                                .count(rejectedBatches)
-                                .subValue(rejectedBatches)
-                                .build()
-                )
+                .totalBatches(metric(totalBatches))
+                .inProgressBatches(metric(inProgressBatches))
+                .completedBatches(metric(completedBatches))
+                .pendingApprovals(metric(pendingApprovals))
+                .rejectedBatches(metric(rejectedBatches))
                 .build();
+    }
+
+    private StatMetric metric(long value) {
+        return StatMetric.builder().count(value).subValue(value).build();
     }
 
     private record DateRange(
             LocalDateTime start,
             LocalDateTime end
-    ) {}
+    ) {
+    }
 
     private DateRange resolveDateRange(
             String filterType,
@@ -141,18 +121,15 @@ public class SysMgrDashboardService {
 
         start = switch (filterType.toLowerCase()) {
 
-            case "day" ->
-                    now.toLocalDate().atStartOfDay();
+            case "day" -> now.toLocalDate().atStartOfDay();
 
-            case "week" ->
-                    now.toLocalDate()
-                            .with(DayOfWeek.MONDAY)
-                            .atStartOfDay();
+            case "week" -> now.toLocalDate()
+                    .with(DayOfWeek.MONDAY)
+                    .atStartOfDay();
 
-            case "month" ->
-                    now.toLocalDate()
-                            .withDayOfMonth(1)
-                            .atStartOfDay();
+            case "month" -> now.toLocalDate()
+                    .withDayOfMonth(1)
+                    .atStartOfDay();
 
             case "custom" -> {
 
@@ -166,11 +143,10 @@ public class SysMgrDashboardService {
                 yield DateTimeConversionUtil.parseLocalDate(startDate).atStartOfDay();
             }
 
-            default ->
-                    throw new AcemException(
-                            ErrorCode.INVALID_REQUEST,
-                            "Invalid filter type"
-                    );
+            default -> throw new AcemException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Invalid filter type"
+            );
         };
 
         if (startDate != null && !startDate.isBlank()) {
@@ -192,6 +168,8 @@ public class SysMgrDashboardService {
     }
 
     //2. chart data
+
+
     public ManagerDashboardChartResponse getChartData(
             ManagerDashboardChartRequest request) {
 
@@ -211,44 +189,48 @@ public class SysMgrDashboardService {
                         batch.getStageProgress() != null &&
                                 batch.getStageProgress().stream()
                                         .anyMatch(stage ->
-                                                stage.getSubDepartmentId() >= 3
-                                                        && stage.getStatus() != Status.TO_BE_INITIATED))
+                                                stage.getSubDepartmentId() >= 3 &&
+                                                        stage.getStatus() != Status.TO_BE_INITIATED
+                                        )
+                )
                 .count();
 
-        List<ChartPointDto> weeklyActivity;
-        List<ChartPointDto> motorsProcessed;
+        LocalDate startDate = range.start().toLocalDate();
+        LocalDate endDate = range.end().toLocalDate();
 
-        switch (request.getFilterType().toLowerCase()) {
+        long spanDays = ChronoUnit.DAYS.between(startDate, endDate) + 1;
 
-            case "day", "custom" -> {
-                weeklyActivity = buildHourlyBatchChart(batches);
-                motorsProcessed = buildHourlyMotorChart(batches);
-            }
-            case "week" -> {
-                weeklyActivity = buildDailyBatchChart(batches);
-                motorsProcessed = buildDailyMotorChart(batches);
-            }
+        ChartDataResponse chartResponse;
 
-            case "month" -> {
-                weeklyActivity = buildWeeklyBatchChart(batches);
-                motorsProcessed = buildWeeklyMotorChart(batches);
-            }
+        if (spanDays <= 31) {
 
-            default -> throw new AcemException(
-                    ErrorCode.INVALID_REQUEST,
-                    "Invalid filter type. Allowed values are day, week, or month"
+            chartResponse = adminDashboardService.buildDailyChart(
+                    batches, startDate, endDate
+            );
+
+        } else if (spanDays <= 90) {
+
+            chartResponse = adminDashboardService.buildWeeklyChart(
+                    batches, startDate, endDate
+            );
+
+        } else {
+
+            chartResponse = adminDashboardService.buildMonthlyChart(
+                    batches, startDate, endDate
             );
         }
 
         return ManagerDashboardChartResponse.builder()
                 .filterType(request.getFilterType())
-                .timeUnit(getTimeUnit(request.getFilterType()))
+                .timeUnit(chartResponse.getTimeUnit())
                 .totalActiveBatches(totalActiveBatches)
-                .weeklyActivity(weeklyActivity)
-                .motorsProcessed(motorsProcessed)
+                .weeklyActivity(chartResponse.getWeeklyActivity())
+                .motorsProcessed(chartResponse.getMotorsProcessed())
                 .stageProcessed(buildStageProcessed(batches))
                 .build();
     }
+
 
     private String getTimeUnit(String filterType) {
 
@@ -263,6 +245,7 @@ public class SysMgrDashboardService {
             default -> "";
         };
     }
+
     private List<StageProcessedDto> buildStageProcessed(List<Batch> batches) {
 
         long totalBatches = batches.size();
@@ -343,6 +326,7 @@ public class SysMgrDashboardService {
                         .build())
                 .toList();
     }
+
     private List<ChartPointDto> buildHourlyMotorChart(
             List<Batch> batches) {
 
@@ -370,6 +354,7 @@ public class SysMgrDashboardService {
                         .build())
                 .toList();
     }
+
     private List<ChartPointDto> buildDailyBatchChart(
             List<Batch> batches) {
 
@@ -484,6 +469,7 @@ public class SysMgrDashboardService {
                         .build())
                 .toList();
     }
+
     private List<ChartPointDto> buildWeeklyMotorChart(
             List<Batch> batches) {
 
@@ -620,6 +606,7 @@ public class SysMgrDashboardService {
 
                 .build();
     }
+
     private Integer calculateProgress(Batch batch) {
         return batchProgressCalculator.calculate(batch);
     }
@@ -800,6 +787,7 @@ public class SysMgrDashboardService {
                         : null)
                 .build();
     }
+
     //6. ALERTS
     public AlertsResponse getAlerts(AlertsRequest request) {
 
@@ -887,6 +875,7 @@ public class SysMgrDashboardService {
                 .stage(alert.getStage())
                 .build();
     }
+
     private String formatRelativeTime(LocalDateTime createdAt) {
 
         if (createdAt == null) {
@@ -912,6 +901,7 @@ public class SysMgrDashboardService {
 
         return days + "d ago";
     }
+
     private LocalDateTime parseAlertDate(String date) {
 
         if (date == null || date.isBlank()) {
@@ -1047,13 +1037,13 @@ public class SysMgrDashboardService {
             response.setPostCureProcessingData(processData);
         } else if (subDeptId == 8) {
             response.setSubscaleProcessingData(processData);
-        }else if (subDeptId == 9) {
+        } else if (subDeptId == 9) {
             response.setTrimmingProcessingData(processData);
         } else if (subDeptId == 10) {
             response.setNdtProcessingData(processData);
         } else if (subDeptId == 11) {
             return buildQcDivisionDetails(batch, request.getBatchId(), subDeptId);
-        } else if(subDeptId == 12L) {
+        } else if (subDeptId == 12L) {
             return buildStaticTestingDetails(batch, request.getBatchId(), subDeptId);
         } else if (subDeptId == 13) {
             return buildDispatchDetails(batch, request.getBatchId(), subDeptId);
@@ -1061,6 +1051,7 @@ public class SysMgrDashboardService {
 
         return response;
     }
+
     private SystemManagerBatchDetailsResponse buildStaticTestingDetails(
             Batch batch, String batchId, Long subDeptId) {
 
@@ -1139,6 +1130,7 @@ public class SysMgrDashboardService {
                 .documents(List.of())
                 .build();
     }
+
     private SystemManagerBatchDetailsResponse buildQcDivisionDetails(
             Batch batch, String batchId, Long subDeptId) {
 
@@ -1248,6 +1240,7 @@ public class SysMgrDashboardService {
                 .documents(List.of())
                 .build();
     }
+
     private SystemManagerBatchDetailsResponse buildDispatchDetails(
             Batch batch, String batchId, Long subDeptId) {
 
@@ -1312,6 +1305,7 @@ public class SysMgrDashboardService {
                 .motors(motors)
                 .build();
     }
+
     private List<Map<String, Object>> buildMotorsForDispatch(
             Batch batch,
             Map<String, Object> dispatchData,
@@ -1350,8 +1344,9 @@ public class SysMgrDashboardService {
                     Map<String, Object> stMap = testingDetails == null
                             ? new LinkedHashMap<>()
                             : new LinkedHashMap<>(objectMapper.convertValue(
-                                    testingDetails,
-                                    new TypeReference<Map<String, Object>>() { }));
+                            testingDetails,
+                            new TypeReference<Map<String, Object>>() {
+                            }));
                     stMap.put("formId", st.getFormId());
                     stMap.put("status", st.getStatus());
 
@@ -1432,6 +1427,7 @@ public class SysMgrDashboardService {
         }
         return motors;
     }
+
     private Map<String, Object> buildBatchDetailsForDispatch(Batch batch, Map<String, Object> dispatchData) {
 
         String castingDate = "";
@@ -1461,12 +1457,14 @@ public class SysMgrDashboardService {
         batchDetails.put("remarks", "");
         return batchDetails;
     }
+
     private Map<String, Object> dispatchListStatus(List<?> rows, String dataKey) {
         if (rows == null || rows.isEmpty()) {
             return Map.of("status", "PENDING", dataKey, List.of());
         }
         return Map.of("status", "COMPLETED", dataKey, rows);
     }
+
     private String computeDivisionStatus(Map<String, Object> data) {
         if (data == null || data.isEmpty()) return "PENDING";
         boolean anyFilled = data.values().stream().anyMatch(v -> {
@@ -1476,6 +1474,7 @@ public class SysMgrDashboardService {
         });
         return anyFilled ? "IN_PROGRESS" : "PENDING";
     }
+
     private ProgressInsights computeProgress(Map<String, Object> data) {
         if (data == null || data.isEmpty()) {
             return ProgressInsights.builder()
@@ -1517,6 +1516,7 @@ public class SysMgrDashboardService {
         }
         return count;
     }
+
     private boolean isApprovalPending(Status status) {
         return status == Status.WAITING_FOR_APPROVAL
                 || status == Status.WAITING_FOR_PARTIAL_APPROVAL;
@@ -1556,6 +1556,7 @@ public class SysMgrDashboardService {
                 .time(DateTimeConversionUtil.formatLocalDateTime(LocalDateTime.now()))
                 .build());
     }
+
     private List<TimelineEvent> buildTimeline(Batch batch,
                                               PersonInfo submittedBy,
                                               LocalDateTime submittedAt,
@@ -1587,6 +1588,7 @@ public class SysMgrDashboardService {
         }
         return timeline;
     }
+
     private String computeMockTrialStatus(Map<String, Object> processData) {
         if (processData == null) return "NOT_APPLICABLE";
         // If a form contains a "mockTrial" key, derive the status from it
@@ -1629,6 +1631,7 @@ public class SysMgrDashboardService {
         // Default for other sub‑departments (can be overridden later)
         return "FULL_PROCESS";
     }
+
     private List<StageSummary> buildStageSummary(Map<String, Object> processData) {
         if (processData == null || !processData.containsKey("stages")) {
             return null;
@@ -1679,6 +1682,7 @@ public class SysMgrDashboardService {
         }
         return summaries;
     }
+
     public BatchStagesResponse getBatchStages(String batchId) {
 
         Batch batch = batchRepo.findByBatchIdAndIsDeletedFalse(batchId)

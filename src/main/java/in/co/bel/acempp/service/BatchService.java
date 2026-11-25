@@ -85,6 +85,7 @@ public class BatchService {
     private final QcDivisionStageStatusResolver qcDivisionStatusResolver;
     private final StageProgressDisplayEnricher stageProgressDisplayEnricher;
     private final CuringCycleMasterRepository curingCycleMasterRepository;
+    private final BatchStateClassifier batchStateClassifier;
     private final MongoTemplate mongoTemplate;
 
 
@@ -841,7 +842,6 @@ public class BatchService {
                 .build();
     }
 
-    //    --------------------------BATCH STATS----------------------------------------------------------------------------------
     public BatchStatsResponse getBatchStats(BatchStatsRequest request) {
 
         DateRange range = resolveDateRange(
@@ -849,68 +849,30 @@ public class BatchService {
                 request.getStartDate(),
                 request.getEndDate());
 
-        LocalDateTime start = range.start();
-        LocalDateTime end = range.end();
-
-        long totalBatches = batchRepository.countByCreatedAtBetweenAndIsDeletedFalse(start, end);
-
         List<Batch> batches = batchRepository
-                .findByCreatedAtBetweenAndIsDeletedFalse(start, end);
+                .findByCreatedAtBetweenAndIsDeletedFalse(range.start(), range.end());
 
+        Map<BatchStateClassifier.BatchState, Long> counts = batchStateClassifier.countByState(batches);
 
-        long inProgress = batches.stream()
-                .filter(batch -> batch.getStageProgress().stream()
-                        .anyMatch(stage -> stage.getStatus() == Status.IN_PROGRESS))
-                .count();
-
-        long completed = batches.stream()
-                .filter(batch -> {
-                    return batch.getStageProgress().stream()
-                            .anyMatch(stage ->
-                                    batchStageSequence.isLastStage(
-                                            stage.getSubDepartmentId(),
-                                            batch.getBatchType())
-                                            && stage.getStatus() == Status.COMPLETELY_APPROVED);
-                })
-                .count();
-
-        long pending = batches.stream()
-                .filter(batch -> batch.getStageProgress() != null && batch.getCurrentStage().stream()
-                        .anyMatch(stage -> stage.getStatus() == Status.WAITING_FOR_APPROVAL
-                                || stage.getStatus() == Status.WAITING_FOR_PARTIAL_APPROVAL))
-                .count();
-
-        long rejected = batches.stream()
-                .filter(batch -> batch.getStageProgress().stream()
-                        .anyMatch(s -> s.getStatus() == Status.REJECTED))
-                .count();
+        long totalBatches = batches.size();
+        long inProgress   = counts.getOrDefault(BatchStateClassifier.BatchState.IN_PROGRESS, 0L);
+        long completed    = counts.getOrDefault(BatchStateClassifier.BatchState.COMPLETED, 0L);
+        long pending      = counts.getOrDefault(BatchStateClassifier.BatchState.PENDING, 0L);
+        long rejected     = counts.getOrDefault(BatchStateClassifier.BatchState.REJECTED, 0L);
 
         return BatchStatsResponse.builder()
-                .totalBatches(
-                        StatMetric.builder()
-                                .count(totalBatches)
-                                .subValue(totalBatches)
-                                .build())
-                .inProgressBatches(
-                        StatMetric.builder()
-                                .count(inProgress)
-                                .subValue(inProgress)
-                                .build())
-                .completedBatches(
-                        StatMetric.builder()
-                                .count(completed)
-                                .subValue(completed)
-                                .build())
-                .pendingApprovals(
-                        StatMetric.builder()
-                                .count(pending)
-                                .subValue(pending)
-                                .build())
-                .rejectedBatches(
-                        StatMetric.builder()
-                                .count(rejected)
-                                .subValue(rejected)
-                                .build())
+                .totalBatches(metric(totalBatches))
+                .inProgressBatches(metric(inProgress))
+                .completedBatches(metric(completed))
+                .pendingApprovals(metric(pending))
+                .rejectedBatches(metric(rejected))
+                .build();
+    }
+
+    private StatMetric metric(long value) {
+        return StatMetric.builder()
+                .count(value)
+                .subValue(value)
                 .build();
     }
 
