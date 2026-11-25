@@ -41,7 +41,7 @@ public class QcDivisionStageStatusResolver {
         List<String> motorIds = Optional.ofNullable(batch.getMotorIds()).orElseGet(List::of);
 
         return enabledDivisionSeeds().stream()
-                .map(seed -> buildInitialDivision(seed, mode, premixCount, motorIds))
+                .map(seed -> buildInitialDivision(seed, mode, premixCount, motorIds, batch))
                 .toList();
     }
 
@@ -87,7 +87,7 @@ public class QcDivisionStageStatusResolver {
                                             canonical != null ? canonical : workflow.getDivision(),
                                             divisionNames));
                     attachUnits(builder, canonical, unlocked || mode != SeedMode.MAIN,
-                            mode, premixCount, motorIds, status);
+                            mode, premixCount, motorIds, status, batch);
                     return builder.build();
                 })
                 .toList();
@@ -143,7 +143,8 @@ public class QcDivisionStageStatusResolver {
             DivisionSeed seed,
             SeedMode mode,
             int premixCount,
-            List<String> motorIds) {
+            List<String> motorIds,
+            Batch batch) {
         String canonical = QcDivisionCatalog.normalizeDivisionName(
                 QcDivisionCatalog.canonicalName(seed.divisionId()));
         boolean unlocked = isInitiallyUnlocked(canonical, mode);
@@ -156,7 +157,7 @@ public class QcDivisionStageStatusResolver {
                         .status(divisionStatus)
                         .divisionName(seed.divisionName());
 
-        attachUnits(builder, canonical, unlocked, mode, premixCount, motorIds, divisionStatus);
+        attachUnits(builder, canonical, unlocked, mode, premixCount, motorIds, divisionStatus, batch);
         return builder.build();
     }
 
@@ -167,7 +168,8 @@ public class QcDivisionStageStatusResolver {
             SeedMode mode,
             int premixCount,
             List<String> motorIds,
-            Status divisionStatus) {
+            Status divisionStatus,
+            Batch batch) {
         if (canonical == null) {
             return;
         }
@@ -184,11 +186,43 @@ public class QcDivisionStageStatusResolver {
             }
         } else if (QcDivisionCatalog.isMotorScoped(canonical)) {
             if (mode == SeedMode.EXPERIMENTAL) {
-                builder.motorStatuses(List.of());
+                // STF only — seed BEM (and any mfg STF) motors; other motor divisions stay N/A.
+                if (QcDivisionCatalog.isStaticTestFacility(canonical)) {
+                    builder.motorStatuses(experimentalStfMotors(batch, unitStatus));
+                } else {
+                    builder.motorStatuses(List.of());
+                }
             } else {
                 builder.motorStatuses(lockedOrOpenMotors(motorIds, unitStatus));
             }
         }
+    }
+
+    /** Experimental STF units from manufacturing STF stage (typically BEM). */
+    private List<MotorStatusResponse> experimentalStfMotors(Batch batch, Status unitStatus) {
+        if (batch == null) {
+            return new ArrayList<>();
+        }
+        List<MotorStatusResponse> fromStf = MainBatchStageProgressHelper.findStage(
+                        batch, MainBatchStageConstants.STF)
+                .map(Batch.StageProgress::getMotorStatuses)
+                .orElseGet(List::of);
+        List<MotorStatusResponse> seeded = new ArrayList<>();
+        for (MotorStatusResponse status : fromStf) {
+            if (status == null || status.getMotorId() == null || status.getMotorId().isBlank()) {
+                continue;
+            }
+            String subType = status.getSubType() != null && !status.getSubType().isBlank()
+                    ? status.getSubType()
+                    : StfMotorSubType.BEM.name();
+            seeded.add(MotorStatusResponse.builder()
+                    .motorId(status.getMotorId())
+                    .subType(subType)
+                    .motorSubmissionType(Status.DRAFT)
+                    .motorSubmissionStatus(unitStatus)
+                    .build());
+        }
+        return seeded;
     }
 
     private boolean isInitiallyUnlocked(String canonical, SeedMode mode) {

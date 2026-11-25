@@ -2850,7 +2850,10 @@ public class QcDivisionService {
             if (QcDivisionCatalog.NDT.equals(name) && !hasManufacturingNdtApprovalUnlock(batch)) {
                 unlocked = false;
             }
+            // Match syncWorkflowLocksFromStageProgress: Qual/Experimental skip BEM force-lock.
             if (isStfFamilyDivision(name)
+                    && !QcDivisionProgressHelper.isQualificationSubscale(batch)
+                    && !QcDivisionProgressHelper.isExperimentalSubscale(batch)
                     && !MainBatchStageProgressHelper.hasApprovedBemMotor(batch)) {
                 unlocked = false;
             }

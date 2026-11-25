@@ -70,8 +70,9 @@ public final class QcDivisionCatalog {
     public static final List<String> STF_MOTOR_DIVISIONS = List.of(
             HARDWARE, CASTING, CURING, DE_CORING, POST_CURE, TRIMMING, NDT, WEIGHTMENT, QC);
 
+    /** Experimental always-on divisions; STF is included (BEM motors gated at unit level). */
     public static final Set<String> EXPERIMENTAL_UNLOCKED_DIVISIONS = Set.of(
-            RAW_MATERIAL_REVALIDATION, RAW_MATERIAL_PROCESSING, MIXING);
+            RAW_MATERIAL_REVALIDATION, RAW_MATERIAL_PROCESSING, MIXING, STATIC_TEST_FACILITY);
 
     private QcDivisionCatalog() {
     }
@@ -80,15 +81,23 @@ public final class QcDivisionCatalog {
         return API_DIVISIONS.get(divisionId);
     }
 
-    /** Accepts legacy PROPELLANT_PROPERTIES as alias for QC. */
+    /** Trim + uppercase; accepts legacy PROPELLANT_PROPERTIES as alias for QC. */
     public static String normalizeDivisionName(String division) {
         if (division == null) {
             return null;
         }
-        if ("PROPELLANT_PROPERTIES".equals(division)) {
+        String normalized = division.trim().toUpperCase();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if ("PROPELLANT_PROPERTIES".equals(normalized)) {
             return QC;
         }
-        return division;
+        return normalized;
+    }
+
+    public static boolean isStaticTestFacility(String division) {
+        return STATIC_TEST_FACILITY.equals(normalizeDivisionName(division));
     }
 
     public static boolean isPremixScoped(String division) {

@@ -1873,6 +1873,9 @@ public final class QcDivisionPayloads {
 
     @Data
     public static class BallisticProcessData {
+        /** Section-level date/time of ballistic evaluation (not a ballisticDetails row). */
+        @JsonAlias("DATE_OF_TEST")
+        private LocalDateTime dateOfTest;
         private List<BallisticRow> ballisticDetails;
         /** Ordered BEM column ids (e.g. FM_1_BEM_NO, FM_1_BEM_NO_2) so empty columns survive round-trip. */
         private List<String> bemColumns;

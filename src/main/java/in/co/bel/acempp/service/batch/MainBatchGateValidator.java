@@ -74,9 +74,12 @@ public class MainBatchGateValidator {
         }
         if (QcDivisionProgressHelper.isExperimentalSubscale(batch)
                 && QcDivisionCatalog.isMotorScoped(divisionName)) {
-            throw new AcemException(
-                    ErrorCode.INVALID_STATE,
-                    "QC motor divisions are not available for Subscale Experimental batches");
+            // STF remains available; other motor divisions stay N/A.
+            if (!QcDivisionCatalog.isStaticTestFacility(divisionName)) {
+                throw new AcemException(
+                        ErrorCode.INVALID_STATE,
+                        "QC motor divisions are not available for Subscale Experimental batches");
+            }
         }
         if (!QcDivisionProgressHelper.isDivisionUnlocked(batch, divisionName)) {
             throw new AcemException(
