@@ -1,0 +1,8 @@
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/AcemApplicationTests.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/config/JacksonDateTimeConfigTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/dto/qcdivision/QcDivisionPropellantFmDeserializeTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/service/BatchStageSequenceTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/service/FormPdfServiceCastingCuringTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/service/FormPdfServiceDispatchTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/service/FormPdfServiceQcHardwareAttachmentsTest.java
+/home/bstc/Development/PP_GITEA_BACKEND/pp-backend/PP_BACKEND/src/test/java/in/co/bel/acempp/service/qualitycontrol/QcHardwareMapperTest.java

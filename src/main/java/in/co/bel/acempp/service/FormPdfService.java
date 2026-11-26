@@ -108,7 +108,7 @@ public class FormPdfService {
     private final LotRepository lotRepository;
     private final CastingStationRepository castingStationRepository;
     private final BuildingMasterRepository buildingMasterRepository;
-
+    private final ObjectMapper objectMapper = new ObjectMapper();
     // ── Styling Constants ─────────────────────────────────────────
     private static final Color BRAND_BLUE = new Color(13, 71, 116);
     private static final Color GOLD = new Color(184, 134, 11);
@@ -120,10 +120,10 @@ public class FormPdfService {
     private static final Color TEXT_GRAY = new Color(120, 120, 120);
     private static final Color WHITE = new Color(255, 255, 255);
 
-    private static final Color STATUS_APPROVED   = new Color(39, 174, 96);   // green
-    private static final Color STATUS_PENDING    = new Color(241, 196, 15);   // yellow / amber
-    private static final Color STATUS_REJECTED   = new Color(192, 57, 43);    // red
-    private static final Color STATUS_DEFAULT    = new Color(127, 140, 141);  // gray
+    private static final Color STATUS_APPROVED = new Color(39, 174, 96);   // green
+    private static final Color STATUS_PENDING = new Color(241, 196, 15);   // yellow / amber
+    private static final Color STATUS_REJECTED = new Color(192, 57, 43);    // red
+    private static final Color STATUS_DEFAULT = new Color(127, 140, 141);  // gray
 
     // ── Fonts ─────────────────────────────────────────────────────
     private static final Font TITLE_FONT = new Font(Font.HELVETICA, 15, Font.BOLD, BRAND_BLUE);
@@ -356,6 +356,7 @@ public class FormPdfService {
                     "Data rendering for Sub-Dept " + id + " is not yet configured.", BODY_FONT));
         }
     }
+
     // ═════════════════════════════════════════════════════════════
     // 111 — RAW MATERIAL SOURCING
     // ═════════════════════════════════════════════════════════════
@@ -415,7 +416,7 @@ public class FormPdfService {
 
             boolean alt = false;
             String materialCode = str(data.getMaterialCode());
-            String lotId        = str(data.getLotId());
+            String lotId = str(data.getLotId());
 
             for (int i = 0; i < specs.size(); i++) {
                 SpecificationResponse spec = specs.get(i);
@@ -474,7 +475,9 @@ public class FormPdfService {
         }
     }
 
-    /** Renders ACEM adduct / HTPB blending preparation sections when present on the lot. */
+    /**
+     * Renders ACEM adduct / HTPB blending preparation sections when present on the lot.
+     */
     private void renderRmpPreparationDetails(Document doc, LotDetailsResponse data)
             throws DocumentException {
         PreparationType preparationType = data.getPreparationType();
@@ -952,6 +955,7 @@ public class FormPdfService {
         }
         return alt;
     }
+
     private String formatSpecRange(SpecifiedDimension sd) {
         if (sd == null) {
             return "-";
@@ -1504,7 +1508,8 @@ public class FormPdfService {
         addSection(doc, title, "");
 
         Map<String, Object> row = mapper.convertValue(
-                sectionData, new TypeReference<Map<String, Object>>() {});
+                sectionData, new TypeReference<Map<String, Object>>() {
+                });
 
         Map<String, Object> flatFields = new LinkedHashMap<>();
         Map<String, List<Map<String, Object>>> nestedTables = new LinkedHashMap<>();
@@ -1679,7 +1684,8 @@ public class FormPdfService {
             throws DocumentException {
         if (abradingOperation == null) return;
         Map<String, Object> abrading = mapper.convertValue(abradingOperation,
-                new TypeReference<Map<String, Object>>() {});
+                new TypeReference<Map<String, Object>>() {
+                });
         double total = 0;
         boolean found = false;
         for (String key : List.of("firstCut", "secondCut")) {
@@ -1687,7 +1693,8 @@ public class FormPdfService {
             if (!(rawRows instanceof List<?> rows)) continue;
             for (Object rawRow : rows) {
                 Map<String, Object> cut = mapper.convertValue(rawRow,
-                        new TypeReference<Map<String, Object>>() {});
+                        new TypeReference<Map<String, Object>>() {
+                        });
                 Object dust = cut.get("dustQty");
                 if (dust != null) {
                     try {
@@ -1718,7 +1725,8 @@ public class FormPdfService {
             List<Map<String, Object>> normalized = new ArrayList<>();
             for (Object item : rows) {
                 Map<String, Object> source = mapper.convertValue(item,
-                        new TypeReference<Map<String, Object>>() {});
+                        new TypeReference<Map<String, Object>>() {
+                        });
                 Map<String, Object> target = new LinkedHashMap<>(source);
                 target.put("ingredient", firstNonNull(source.get("ingredient"), source.get("materialName")));
                 target.put("partsByWt", firstNonNull(source.get("partsByWt"), source.get("partsByWeight")));
@@ -2075,6 +2083,7 @@ public class FormPdfService {
             }
         }
     }
+
     private void renderCastingCuring(Document doc, CastingCuringFormResponse data) throws DocumentException {
 
         if (data == null || data.getMotors() == null || data.getMotors().isEmpty()) {
@@ -2126,7 +2135,8 @@ public class FormPdfService {
             doc.add(motorTitle);
 
             Map<String, Object> motorMap = mapper.convertValue(
-                    motor, new TypeReference<Map<String, Object>>() {});
+                    motor, new TypeReference<Map<String, Object>>() {
+                    });
             Map<String, List<Map<String, Object>>> castMap = ccTypedCastingSectionMap(motor);
             Map<String, List<Map<String, Object>>> cureMap = ccTypedCuringSectionMap(motor);
             Map<String, Object> castingSetup = ccFirstMap(motor.getSetup());
@@ -2166,7 +2176,6 @@ public class FormPdfService {
 
             if (!weightRows.isEmpty() || !mandrelRows.isEmpty() || !feedRows.isEmpty()) {
                 addSection(doc, "Final Assembly Details", "");
-
 
 
                 if (!mandrelRows.isEmpty()) {
@@ -2484,6 +2493,7 @@ public class FormPdfService {
             spacer(doc, 14);
         }
     }
+
     private String extractFileNames(Object value) {
         if (value == null) return "-";
 
@@ -2526,10 +2536,12 @@ public class FormPdfService {
             var method = item.getClass().getMethod("getFileName");
             Object result = method.invoke(item);
             if (result != null) return result.toString();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         return str(item); // fallback
     }
+
     private Map<String, List<Map<String, Object>>> ccTypedCastingSectionMap(
             CastingCuringMotor motor) {
         Map<String, List<Map<String, Object>>> sections = new LinkedHashMap<>();
@@ -2744,9 +2756,9 @@ public class FormPdfService {
         if (value instanceof List<?> parts && parts.size() >= 3) {
             try {
                 return LocalDate.of(
-                        Integer.parseInt(parts.get(0).toString()),
-                        Integer.parseInt(parts.get(1).toString()),
-                        Integer.parseInt(parts.get(2).toString()))
+                                Integer.parseInt(parts.get(0).toString()),
+                                Integer.parseInt(parts.get(1).toString()),
+                                Integer.parseInt(parts.get(2).toString()))
                         .format(PDF_DATE_FORMAT);
             } catch (NumberFormatException | DateTimeException ignored) {
                 return str(value);
@@ -2769,9 +2781,9 @@ public class FormPdfService {
             try {
                 int second = parts.size() > 2 ? Integer.parseInt(parts.get(2).toString()) : 0;
                 return LocalTime.of(
-                        Integer.parseInt(parts.get(0).toString()),
-                        Integer.parseInt(parts.get(1).toString()),
-                        second)
+                                Integer.parseInt(parts.get(0).toString()),
+                                Integer.parseInt(parts.get(1).toString()),
+                                second)
                         .format(PDF_TIME_FORMAT);
             } catch (NumberFormatException | DateTimeException ignored) {
                 return str(value);
@@ -2870,6 +2882,7 @@ public class FormPdfService {
             spacer(doc, 12);
         }
     }
+
     private void renderTypedPostCureDetails(
             Document doc,
             PostCureMotor motor) throws DocumentException {
@@ -3251,7 +3264,7 @@ public class FormPdfService {
 //                    linerObs += " / " + r.getObservations();
 //                }
                 addCell(table, linerObs, BODY_FONT, bg);
-                addCell(table,obs, BODY_FONT, bg);
+                addCell(table, obs, BODY_FONT, bg);
                 alt = !alt;
             }
             doc.add(table);
@@ -3540,6 +3553,7 @@ public class FormPdfService {
             doc.add(table);
         }
     }
+
     private String subscaleYesNo(Boolean value) {
         if (value == null) return "—";
         return value ? "Yes" : "No";
@@ -3630,14 +3644,14 @@ public class FormPdfService {
                     if (detailsList != null && !detailsList.isEmpty()) {
                         addSection(doc, "Trimming Details", "");
 
-                        PdfPTable table = createTable(new float[]{22, 15, 15, 14, 14, 20 , 14  , 14 , 14});
+                        PdfPTable table = createTable(new float[]{22, 15, 15, 14, 14, 20, 14, 14, 14});
                         addHeaders(table,
                                 "MACHINE DETAILS",
                                 "START DATE & TIME",
                                 "COMPLETION DATE & TIME",
                                 "ARBOR SIZE",
                                 "CUTTER SIZE",
-                                "INGEST SIZE" , "MOTOR TRUING" , "ARBOR TRUING",
+                                "INGEST SIZE", "MOTOR TRUING", "ARBOR TRUING",
                                 "REMARKS");
 
                         boolean alt = false;
@@ -3856,6 +3870,7 @@ public class FormPdfService {
             return false;
         }
     }
+
     private List<Map<String, Object>> trimmingOperationRows(Map<String, Object> motor) {
         List<Map<String, Object>> direct = trimmingMapList(motor.get("trimmingOperationDetails"));
         if (!direct.isEmpty()) return direct;
@@ -3994,6 +4009,7 @@ public class FormPdfService {
                 .toUpperCase(java.util.Locale.ROOT);
     }
 
+
     private void renderNdtDetails(Document doc, NdtResponse data) throws DocumentException {
         if (data == null || data.getMotors() == null || data.getMotors().isEmpty()) {
             doc.add(new Paragraph("No NDT details available.", BODY_FONT));
@@ -4001,6 +4017,7 @@ public class FormPdfService {
         }
 
         addSection(doc, "NDT", "");
+
         PdfPTable summary = createTable(new float[]{25, 25, 25, 25});
         addInfoStripCell(summary, "Batch ID", str(data.getBatchId()));
         addInfoStripCell(summary, "Batch Type", str(data.getBatchType()));
@@ -4012,80 +4029,109 @@ public class FormPdfService {
         statusCell.setBorderColor(BORDER_LIGHT);
         statusCell.setPadding(6);
         statusCell.setBackgroundColor(ROW_ALT);
+
         Paragraph statusParagraph = new Paragraph();
         statusParagraph.add(new Chunk("Form Status: ", BODY_BOLD));
         statusParagraph.add(createStatusPhrase(
                 data.getFormStatus() != null ? data.getFormStatus().toString() : "-"));
+
         statusCell.addElement(statusParagraph);
         summary.addCell(statusCell);
+
         doc.add(summary);
         spacer(doc, 8);
 
+        for (NdtMotorDto motor : data.getMotors()) {
 
+            Map<String, Object> motorMap = motor == null
+                    ? Collections.emptyMap()
+                    : objectMapper.convertValue(
+                    motor,
+                    new TypeReference<Map<String, Object>>() {
+                    }
+            );
 
-        for (NdtMotorDto motorMap : data.getMotors()) {
-            String motorId = ccText((Map<String, Object>) motorMap, "motorId", "motorIdNo");
-            addPlainMotorStatusHeader(doc, motorId, ndtMotorStatus(data, motorMap, motorId));
+            String motorId = ccText(motorMap, "motorId", "motorIdNo");
+            addPlainMotorStatusHeader(doc, motorId, ndtMotorStatus(data, motor, motorId));
 
             Map<String, Object> radiography = qcObjectMap(
-                    qcValue((Map<String, Object>) motorMap, "radiographyDetails"));
+                    qcValue(motorMap, "radiographyDetails"));
+
             if (!radiography.isEmpty()) {
                 addCcTitle(doc, "Radiography setup");
+
                 PdfPTable setupTable = createTable(new float[]{38, 62});
                 addHeaders(setupTable, "Parameter", "Value");
+
                 addCell(setupTable, "Equipment utilized for radiography work", BODY_BOLD, ROW_ALT);
                 addCell(setupTable, qcDisplayValue(qcValue(
                         radiography, "equipmentUtilized")), BODY_FONT, WHITE);
+
                 addCell(setupTable, "X ray beam energy used for radiography", BODY_BOLD, ROW_ALT);
                 addCell(setupTable, qcDisplayValue(qcValue(
                         radiography, "xrayBeamEnergies")), BODY_FONT, WHITE);
+
                 addCell(setupTable, "Radiography plan", BODY_BOLD, ROW_ALT);
                 addCell(setupTable, ccText(radiography, "radiographyPlanId"), BODY_FONT, WHITE);
+
                 doc.add(setupTable);
 
                 List<Map<String, Object>> plans = ndtPlanDetails(
                         qcValue(radiography, "radiographyPlanDetails"));
+
                 if (!plans.isEmpty()) {
                     addCcTitle(doc, "Radiography plan details");
+
                     PdfPTable table = createTable(new float[]{7, 15, 15, 13, 15, 15, 20});
                     addHeaders(table, "Sr.", "Sections", "Orientations", "SFD",
                             "Normal", "Tangential", "Detector");
+
                     for (int index = 0; index < plans.size(); index++) {
                         Map<String, Object> plan = plans.get(index);
+
                         addCell(table, Integer.toString(index + 1), BODY_FONT, WHITE);
                         addCell(table, ccText(plan, "numberOfSections"), BODY_FONT, WHITE);
                         addCell(table, ccText(plan, "numberOfOrientations"), BODY_FONT, WHITE);
                         addCell(table, ccText(plan, "sfd"), BODY_FONT, WHITE);
                         addCell(table, ccText(plan, "numberOfNormalExposures"), BODY_FONT, WHITE);
                         addCell(table, ccText(plan, "numberOfTangentialExposures"), BODY_FONT, WHITE);
+
                         Object detector = qcValue(plan, "detectorType");
-                        addCell(table, detector != null ? prettyText(detector.toString()) : "—",
-                                BODY_FONT, WHITE);
+                        addCell(table, detector != null
+                                ? prettyText(detector.toString()) : "—", BODY_FONT, WHITE);
                     }
+
                     doc.add(table);
                 }
             }
 
             List<Map<String, Object>> additionalExposures = qcMapList(
-                    qcValue((Map<String, Object>) motorMap, "additionalExposureDetails"));
+                    qcValue(motorMap, "additionalExposureDetails"));
+
             if (!additionalExposures.isEmpty()) {
                 addCcTitle(doc, "Additional exposure details");
+
                 PdfPTable table = createTable(new float[]{30, 35, 35});
                 addHeaders(table, "Section", "Orientation", "Exposures");
+
                 for (Map<String, Object> exposure : additionalExposures) {
                     addCell(table, ccText(exposure, "sectionNumber"), BODY_FONT, WHITE);
                     addCell(table, ccText(exposure, "orientation"), BODY_FONT, WHITE);
                     addCell(table, ccText(exposure, "numberOfExposure"), BODY_FONT, WHITE);
                 }
+
                 doc.add(table);
             }
 
             List<Map<String, Object>> radiographyObservations = qcMapList(
-                    qcValue((Map<String, Object>) motorMap, "radiographyObservations"));
+                    qcValue(motorMap, "radiographyObservations"));
+
             if (!radiographyObservations.isEmpty()) {
                 addCcTitle(doc, "Observation in radiography");
+
                 PdfPTable table = createTable(new float[]{15, 18, 27, 40});
                 addHeaders(table, "Section", "Orientation", "Observations", "Images");
+
                 for (Map<String, Object> observation : radiographyObservations) {
                     addCell(table, ccText(observation, "sectionNumber"), BODY_FONT, WHITE);
                     addCell(table, ccText(observation, "orientation"), BODY_FONT, WHITE);
@@ -4093,57 +4139,83 @@ public class FormPdfService {
                     addCell(table, qcDisplayValue(qcValue(
                             observation, "uploadedImages", "images")), BODY_FONT, WHITE);
                 }
+
                 doc.add(table);
             }
 
             List<Map<String, Object>> visualInspections = qcMapList(
-                    qcValue((Map<String, Object>) motorMap, "visualInspectionDetails"));
+                    qcValue(motorMap, "visualInspectionDetails"));
+
             if (!visualInspections.isEmpty()) {
                 addCcTitle(doc, "Visual inspection");
+
                 PdfPTable table = createTable(new float[]{40, 12, 13, 35});
                 addHeaders(table, "Observation", "Section", "Orientation", "Images");
+
                 for (Map<String, Object> inspection : visualInspections) {
                     String type = ndtObservationLabel(qcValue(inspection, "observationType"));
                     String observation = ccText(inspection, "observation");
+
                     String combined = "—".equals(type)
                             ? observation
                             : type + ("—".equals(observation) ? "" : ": " + observation);
+
                     addCell(table, combined, BODY_FONT, WHITE);
                     addCell(table, ccText(inspection, "sectionNumber"), BODY_FONT, WHITE);
                     addCell(table, ccText(inspection, "orientation"), BODY_FONT, WHITE);
                     addCell(table, qcDisplayValue(qcValue(
                             inspection, "uploadedImages", "images")), BODY_FONT, WHITE);
                 }
+
                 doc.add(table);
             }
 
-            Object visualMedia = qcValue((Map<String, Object>) motorMap, "uploadedVideos", "visualInspectionMedia");
+            Object visualMedia = qcValue(motorMap, "uploadedVideos", "visualInspectionMedia");
+
             if (hasQcDisplayValue(visualMedia)) {
                 addCcTitle(doc, "Visual inspection media");
                 doc.add(new Paragraph(qcDisplayValue(visualMedia), BODY_FONT));
             }
 
-            Object signedReport = qcValue((Map<String, Object>) motorMap, "signedNdtReport");
+            Object signedReport = qcValue(motorMap, "signedNdtReport");
+
             if (hasQcDisplayValue(signedReport)) {
                 addCcTitle(doc, "Signed NDT report");
                 doc.add(new Paragraph(qcDisplayValue(signedReport), BODY_FONT));
             }
 
-            Object additionalRemarks = qcValue((Map<String, Object>) motorMap, "additionalRemarks");
+            Object additionalRemarks = qcValue(motorMap, "additionalRemarks");
+
             if (hasQcDisplayValue(additionalRemarks)) {
                 addCcTitle(doc, "Additional remarks");
                 doc.add(new Paragraph(qcDisplayValue(additionalRemarks), BODY_FONT));
             }
+
             spacer(doc, 8);
         }
     }
+
 
     private String ndtMotorStatus(
             NdtResponse data,
             NdtMotorDto motor,
             String motorId) {
-        Object savedStatus = qcValue((Map<String, Object>) motor, "motorSubmissionStatus", "approvalStatus");
-        if (savedStatus != null) return workflowStatusLabel(savedStatus);
+
+        if (motor != null) {
+            Map<String, Object> motorMap = objectMapper.convertValue(
+                    motor,
+                    new TypeReference<Map<String, Object>>() {
+                    }
+            );
+
+            Object savedStatus = qcValue(
+                    motorMap, "motorSubmissionStatus", "approvalStatus");
+
+            if (savedStatus != null) {
+                return workflowStatusLabel(savedStatus);
+            }
+        }
+
         if (data.getMotorStatuses() != null) {
             for (MotorStatusResponse status : data.getMotorStatuses()) {
                 if (motorId.equals(str(status.getMotorId()))) {
@@ -4151,8 +4223,10 @@ public class FormPdfService {
                 }
             }
         }
+
         return "—";
     }
+
 
     private String ndtObservationLabel(Object observationType) {
         if (observationType == null) return "—";
@@ -5220,7 +5294,7 @@ public class FormPdfService {
                     addCell(table, str(trimmingValue(row, "startDatetime", "startDate")),
                             BODY_FONT, background);
                     addCell(table, str(trimmingValue(row,
-                            "completionDatetime", "completionDate", "endDate")),
+                                    "completionDatetime", "completionDate", "endDate")),
                             BODY_FONT, background);
                     addCell(table, str(trimmingValue(row, "arborSize")), BODY_FONT, background);
                     addCell(table, str(trimmingValue(row, "cutterSize")), BODY_FONT, background);
@@ -5794,10 +5868,12 @@ public class FormPdfService {
     private boolean isQcAttachmentRows(List<Map<String, Object>> rows) {
         return rows != null && !rows.isEmpty()
                 && rows.stream().allMatch(row -> qcValue(row, "fileId", "fileName") != null
-                        && (row.containsKey("fileId") || row.containsKey("fileName")));
+                && (row.containsKey("fileId") || row.containsKey("fileName")));
     }
 
-    /** Keep internal file paths and storage metadata out of the human-readable QC PDF. */
+    /**
+     * Keep internal file paths and storage metadata out of the human-readable QC PDF.
+     */
     private void renderQcAttachmentRows(
             Document doc,
             String heading,
@@ -6231,12 +6307,18 @@ public class FormPdfService {
     }
 
     private List<Map<String, Object>> qcMapList(Object value) {
-        if (!(value instanceof Collection<?> collection)) return Collections.emptyList();
-        List<Map<String, Object>> maps = new ArrayList<>();
-        for (Object item : collection) {
-            if (item instanceof Map<?, ?> map) maps.add(stringKeyMap(map));
+        if (!(value instanceof List<?> list)) {
+            return Collections.emptyList();
         }
-        return maps;
+
+        return list.stream()
+                .filter(Objects::nonNull)
+                .map(item -> objectMapper.convertValue(
+                        item,
+                        new TypeReference<Map<String, Object>>() {
+                        }
+                ))
+                .toList();
     }
 
     private void appendQcMaps(List<Map<String, Object>> target, Object value) {
@@ -7065,8 +7147,9 @@ public class FormPdfService {
             spacer(doc, 8);
         }
     }
+
     public void renderBemMotorDetails(Document doc, BemMotorDetailsResponseDto data) throws DocumentException {
-        if (data == null || data.getMotorId() == null ) {
+        if (data == null || data.getMotorId() == null) {
             doc.add(new Paragraph("No structural evaluation records found for Static Testing (STF) Form.", BODY_FONT));
             return;
         }
@@ -7305,7 +7388,9 @@ public class FormPdfService {
         addStfQaRemarksStrip(doc, details.getQaRemarks());
     }
 
-    /** Sheet labels for MAIN/BEM ballistic parameter keys (matches FE presets). */
+    /**
+     * Sheet labels for MAIN/BEM ballistic parameter keys (matches FE presets).
+     */
     private String stfBallisticParameterLabel(String parameter) {
         if (isBlank(parameter)) return "-";
         String key = parameter.trim();
@@ -7602,6 +7687,7 @@ public class FormPdfService {
             spacer(doc, 12);
         }
     }
+
     private String dispatchMotorStatus(
             DispatchDetailsResponse data,
             DispatchMotor motor,
@@ -8135,7 +8221,9 @@ public class FormPdfService {
         return s.isEmpty() ? "—" : s;
     }
 
-    /** Propellant Wt (C−B−A); blank when any weight is missing/non-numeric. */
+    /**
+     * Propellant Wt (C−B−A); blank when any weight is missing/non-numeric.
+     */
     private String computeInhibitionPropellantWeight(InhibitionTableDTO row) {
         if (row == null) {
             return "";
@@ -8336,7 +8424,10 @@ public class FormPdfService {
         cell.addElement(p);
         table.addCell(cell);
     }
-    /** Adds a completely empty cell (no hyphen, no text) */
+
+    /**
+     * Adds a completely empty cell (no hyphen, no text)
+     */
     private void addEmptyCell(PdfPTable table, Color bg) {
         PdfPCell cell = new PdfPCell(new Phrase(""));
         cell.setBackgroundColor(bg);

@@ -317,7 +317,7 @@ public class ProjectService {
                 .totalProjects(totalProjects)
                 .activeProjects(activeProjectsCount)
                 .inactiveProjects(inactiveProjects)
-                .idleProjects(idleProjects)
+                .idleProjects(inactiveProjects)
                 .build();
     }
 

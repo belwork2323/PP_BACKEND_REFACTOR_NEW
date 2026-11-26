@@ -25,7 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/user/stf")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('User')")
+@PreAuthorize("hasAnyAuthority('User', 'Approver')")
 public class StaticTestingController {
 
     private final StaticTestingService stfService;
